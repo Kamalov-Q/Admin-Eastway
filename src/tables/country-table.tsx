@@ -68,14 +68,12 @@ export function CountriesTable({
       setPendingDelete(null);
     } catch (e) {
       setDeleting(false);
-      // keep dialog open if deletion failed
       console.error("Failed to delete country:", e);
     }
   };
 
   const columns: ColumnDef<Country>[] = [
     { accessorKey: "id", header: "ID" },
-    // only render language columns that exist at least once in data
     ...LANGUAGE_COLUMNS.filter((col) => data.some((c) => !!c[col.key])).map(
       (col) => ({ accessorKey: col.key, header: col.header })
     ),
