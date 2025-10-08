@@ -3,13 +3,33 @@ import axiosInstance from "./axios";
 
 export type Tour = {
     id: number;
-    title_en: string;
-    desc_en?: string;
     days?: number;
     type?: string;
     cityId?: number;
-    city?: { name_en: string; country?: { name_en: string } };
-    price?: { amount: number };
+    tourCategoryId?: number;
+    thumbnail?: string;
+    youtubeLink?: string;
+    images?: { url: string }[];
+    infos?: { name_en: string; name_ru?: string; name_gr?: string; name_jp?: string; name_es?: string; name_zh?: string }[];
+    routes?: { name_en: string; name_ru?: string; name_gr?: string; name_jp?: string; name_es?: string; name_zh?: string }[];
+    itinerary?: { day: number; activity: string }[];
+    price?: {
+        amount: number;
+        included?: { name_en: string; name_ru?: string; name_gr?: string; name_jp?: string; name_es?: string; name_zh?: string }[];
+        notIncluded?: { name_en: string; name_ru?: string; name_gr?: string; name_jp?: string; name_es?: string; name_zh?: string }[];
+    };
+    title_en: string;
+    desc_en?: string;
+    title_ru?: string;
+    desc_ru?: string;
+    title_gr?: string;
+    desc_gr?: string;
+    title_jp?: string;
+    desc_jp?: string;
+    title_es?: string;
+    desc_es?: string;
+    title_zh?: string;
+    desc_zh?: string;
 };
 
 export const useTours = () =>
@@ -27,7 +47,7 @@ export const useUpdateTour = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, payload }: { id: number; payload: Partial<Tour> }) =>
-            axiosInstance.put(`/tours/${id}`, payload).then(r => r.data),
+            axiosInstance.patch(`/tours/${id}`, payload).then(r => r.data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["tours"] }),
     });
 };
