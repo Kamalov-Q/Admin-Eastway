@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import type { Tour } from "@/api/tours";
 import {
@@ -17,17 +18,27 @@ export default function ToursPage() {
   const updateTour = useUpdateTour();
   const deleteTour = useDeleteTour();
 
-  const [modalOpen, setModalOpen] = useState(false);
+  // Create/Edit modal state
+  const [formOpen, setFormOpen] = useState(false);
   const [editingTour, setEditingTour] = useState<Tour | null>(null);
+
+  // View (read-only) modal state
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewTour, setViewTour] = useState<Tour | null>(null);
 
   const openAddModal = () => {
     setEditingTour(null);
-    setModalOpen(true);
+    setFormOpen(true);
   };
 
   const openEditModal = (tour: Tour) => {
     setEditingTour(tour);
-    setModalOpen(true);
+    setFormOpen(true);
+  };
+
+  const openViewModal = (tour: Tour) => {
+    setViewTour(tour);
+    setViewOpen(true);
   };
 
   const handleSubmit = async (values: Partial<Tour>) => {
@@ -37,7 +48,7 @@ export default function ToursPage() {
       } else {
         await createTour.mutateAsync(values);
       }
-      setModalOpen(false);
+      setFormOpen(false);
     } catch (err) {
       console.error("Failed to save tour:", err);
     }
@@ -65,14 +76,26 @@ export default function ToursPage() {
           data={tours}
           onEdit={openEditModal}
           onDelete={handleDelete}
+          onView={openViewModal} // 🔁 use same form modal in view mode
         />
       )}
 
+      {/* Create/Edit Modal */}
       <TourFormModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
+        open={formOpen}
+        onOpenChange={setFormOpen}
         initialData={editingTour}
         onSubmit={handleSubmit}
+        mode={editingTour ? "edit" : "create"}
+      />
+
+      {/* View (read-only) Modal — same component with mode="view" */}
+      <TourFormModal
+        open={viewOpen}
+        onOpenChange={setViewOpen}
+        initialData={viewTour}
+        onSubmit={() => {}} // not used in view mode
+        mode="view"
       />
     </div>
   );

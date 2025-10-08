@@ -16,7 +16,6 @@ import type { Tour } from "@/api/tours";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
 import { X, Plus, Trash2, Check } from "lucide-react";
 import { useCities } from "@/api/cities";
-
 import {
   Popover,
   PopoverContent,
@@ -30,8 +29,6 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 
-/* ----------------------------- Constants ----------------------------- */
-
 const LANGS = ["en", "ru", "gr", "jp", "es", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 
@@ -40,8 +37,6 @@ const emptyLangObject = () =>
     (acc, lang) => ({ ...acc, [`name_${lang}`]: "" }),
     {} as Record<`name_${Lang}`, string>
   );
-
-/* ----------------------------- Validation ---------------------------- */
 
 const schema = z.object({
   days: z.number().min(1, "Days is required"),
@@ -135,13 +130,13 @@ const schema = z.object({
 
 export type TourFormValues = z.infer<typeof schema>;
 
-/* ------------------------------ Component ---------------------------- */
-
 type Props = {
   open: boolean;
   onOpenChange: (val: boolean) => void;
   initialData?: Tour | null;
   onSubmit: (values: Partial<Tour>) => Promise<void> | void;
+  /** "create" | "edit" | "view" */
+  mode?: "create" | "edit" | "view";
 };
 
 export function TourFormModal({
@@ -149,7 +144,12 @@ export function TourFormModal({
   onOpenChange,
   initialData,
   onSubmit,
+  mode,
 }: Props) {
+  const effectiveMode: "create" | "edit" | "view" =
+    mode ?? (initialData ? "edit" : "create");
+  const isView = effectiveMode === "view";
+
   const [thumbnailPreview, setThumbnailPreview] = React.useState<string | null>(
     null
   );
@@ -172,7 +172,7 @@ export function TourFormModal({
     resolver: zodResolver(schema),
     defaultValues: {
       days: 1,
-      type: "" as any, // RHF needs something; Zod will enforce valid choice
+      type: "" as any,
       cityId: 0,
       tourCategoryId: 0,
       youtubeLink: "",
@@ -202,7 +202,6 @@ export function TourFormModal({
     name: "priceNotIncluded",
   });
 
-  /* --------------------------- Prefill for edit --------------------------- */
   React.useEffect(() => {
     if (!open) return;
     if (initialData) {
@@ -249,9 +248,8 @@ export function TourFormModal({
     }
   }, [open, initialData, reset]);
 
-  /* ------------------------------ Handlers ------------------------------ */
-
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isView) return;
     const file = e.target.files?.[0];
     if (file) {
       setThumbnailPreview(URL.createObjectURL(file));
@@ -260,6 +258,7 @@ export function TourFormModal({
   };
 
   const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isView) return;
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length === 0) return;
     setNewImageFiles((prev) => [...prev, ...files]);
@@ -268,17 +267,22 @@ export function TourFormModal({
   };
 
   const removeExistingImage = (url: string) => {
+    if (isView) return;
     setExistingImageUrls((prev) => prev.filter((u) => u !== url));
   };
 
   const removeNewImage = (index: number) => {
+    if (isView) return;
     setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /* ------------------------------- Submit ------------------------------- */
-
   const onSubmitHandler = async (values: TourFormValues) => {
+    if (isView) {
+      onOpenChange(false);
+      return;
+    }
+
     if (
       !thumbnailPreview &&
       (!values.thumbnailFile || values.thumbnailFile.length === 0)
@@ -332,8 +336,6 @@ export function TourFormModal({
     onOpenChange(false);
   };
 
-  /* ------------------------------ UI Helpers --------------------------- */
-
   const Label = ({
     children,
     required,
@@ -349,29 +351,35 @@ export function TourFormModal({
   const InlineError = ({ msg }: { msg?: string }) =>
     msg ? <p className="text-red-500 text-xs mt-1">{msg}</p> : null;
 
-  /* -------------------------------- Render ----------------------------- */
-
   const selectedCityId = watch("cityId");
   const selectedCity = cities.find((c) => c.id === selectedCityId);
+
+  const ro = isView ? { readOnly: true, disabled: true } : {};
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto p-6">
         <DialogHeader>
-          <DialogTitle>{initialData ? "Edit Tour" : "Add Tour"}</DialogTitle>
+          <DialogTitle>
+            {isView ? "View Tour" : initialData ? "Edit Tour" : "Add Tour"}
+          </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6">
-          {/* ====== Titles & Descriptions ====== */}
+          {/* ====== Titles & Descriptions (6 langs) ====== */}
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
                 <Label required>Title ({lang.toUpperCase()})</Label>
-                <Input {...register(`title_${lang}` as const)} />
-                <InlineError msg={(errors as any)[`title_${lang}`]?.message} />
+                <Input {...register(`title_${lang}` as const)} {...ro} />
+                {!isView && (
+                  <InlineError
+                    msg={(errors as any)[`title_${lang}`]?.message}
+                  />
+                )}
 
                 <Label>Description ({lang.toUpperCase()})</Label>
-                <Input {...register(`desc_${lang}` as const)} />
+                <Input {...register(`desc_${lang}` as const)} {...ro} />
               </div>
             ))}
           </div>
@@ -383,78 +391,101 @@ export function TourFormModal({
               <Input
                 type="number"
                 {...register("days", { valueAsNumber: true })}
+                {...ro}
               />
-              <InlineError msg={errors.days?.message} />
+              {!isView && <InlineError msg={errors.days?.message} />}
             </div>
 
             <div>
               <Label required>Tour Type</Label>
-              <select
-                {...register("type")}
-                className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500"
-                defaultValue={initialData?.type || ""}
-              >
-                <option value="" disabled>
-                  Select type
-                </option>
-                <option value="private">Private</option>
-                <option value="group">Group</option>
-              </select>
-              <InlineError msg={errors.type?.message} />
+              {isView ? (
+                <Input value={initialData?.type ?? ""} readOnly disabled />
+              ) : (
+                <select
+                  {...register("type")}
+                  className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500"
+                  defaultValue={initialData?.type || ""}
+                >
+                  <option value="" disabled>
+                    Select type
+                  </option>
+                  <option value="private">Private</option>
+                  <option value="group">Group</option>
+                </select>
+              )}
+              {!isView && <InlineError msg={errors.type?.message} />}
             </div>
 
-            {/* ✅ Searchable city combobox (name_en - name_ru) */}
+            {/* City (searchable when editing; read-only text when viewing) */}
             <div>
               <Label required>City</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className="w-full justify-between"
-                  >
-                    {selectedCity
+              {isView ? (
+                <Input
+                  value={
+                    selectedCity
                       ? `${selectedCity.name_en}${
                           selectedCity.name_ru
                             ? ` - ${selectedCity.name_ru}`
                             : ""
                         }`
-                      : isLoading
-                      ? "Loading..."
-                      : "Select a city"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search city..." />
-                    <CommandEmpty>No city found.</CommandEmpty>
-                    <CommandGroup>
-                      {cities.map((city) => (
-                        <CommandItem
-                          key={city.id}
-                          value={`${city.name_en} ${city.name_ru || ""}`}
-                          onSelect={() =>
-                            setValue("cityId", city.id, {
-                              shouldValidate: true,
-                            })
-                          }
-                        >
-                          <Check
-                            className={`mr-2 h-4 w-4 ${
-                              city.id === selectedCityId
-                                ? "opacity-100"
-                                : "opacity-0"
-                            }`}
-                          />
-                          {city.name_en}
-                          {city.name_ru ? ` - ${city.name_ru}` : ""}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <InlineError msg={errors.cityId?.message} />
+                      : initialData?.cityId
+                      ? String(initialData.cityId)
+                      : ""
+                  }
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      {selectedCity
+                        ? `${selectedCity.name_en}${
+                            selectedCity.name_ru
+                              ? ` - ${selectedCity.name_ru}`
+                              : ""
+                          }`
+                        : isLoading
+                        ? "Loading..."
+                        : "Select a city"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search city..." />
+                      <CommandEmpty>No city found.</CommandEmpty>
+                      <CommandGroup>
+                        {cities.map((city) => (
+                          <CommandItem
+                            key={city.id}
+                            value={`${city.name_en} ${city.name_ru || ""}`}
+                            onSelect={() =>
+                              setValue("cityId", city.id, {
+                                shouldValidate: true,
+                              })
+                            }
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${
+                                city.id === selectedCityId
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              }`}
+                            />
+                            {city.name_en}
+                            {city.name_ru ? ` - ${city.name_ru}` : ""}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
+              {!isView && <InlineError msg={errors.cityId?.message} />}
             </div>
 
             <div>
@@ -462,8 +493,9 @@ export function TourFormModal({
               <Input
                 type="number"
                 {...register("tourCategoryId", { valueAsNumber: true })}
+                {...ro}
               />
-              <InlineError msg={errors.tourCategoryId?.message} />
+              {!isView && <InlineError msg={errors.tourCategoryId?.message} />}
             </div>
 
             <div className="md:col-span-2">
@@ -471,19 +503,22 @@ export function TourFormModal({
               <Input
                 {...register("youtubeLink")}
                 placeholder="https://youtube.com/watch?v=xxxxx"
+                {...ro}
               />
-              <InlineError msg={errors.youtubeLink?.message} />
+              {!isView && <InlineError msg={errors.youtubeLink?.message} />}
             </div>
           </div>
 
           {/* ====== Thumbnail ====== */}
           <div>
             <Label required>Thumbnail</Label>
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={handleThumbnailChange}
-            />
+            {!isView && (
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={handleThumbnailChange}
+              />
+            )}
             {thumbnailPreview && (
               <img
                 src={thumbnailPreview}
@@ -491,42 +526,55 @@ export function TourFormModal({
                 className="w-48 h-32 mt-2 object-cover rounded"
               />
             )}
+            {!thumbnailPreview && initialData?.thumbnail && (
+              <img
+                src={initialData.thumbnail}
+                alt="thumbnail"
+                className="w-48 h-32 mt-2 object-cover rounded"
+              />
+            )}
           </div>
 
-          {/* ====== Images (existing + new) ====== */}
+          {/* ====== Images (existing + new previews) ====== */}
           <div>
             <Label required>Tour Images</Label>
-            <Input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImagesChange}
-            />
+            {!isView && (
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImagesChange}
+              />
+            )}
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {existingImageUrls.map((url) => (
                 <div key={url} className="relative group">
                   <img src={url} className="w-full h-32 object-cover rounded" />
-                  <button
-                    type="button"
-                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
-                    title="Remove"
-                    onClick={() => removeExistingImage(url)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {!isView && (
+                    <button
+                      type="button"
+                      className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
+                      title="Remove"
+                      onClick={() => removeExistingImage(url)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
               {newImagePreviews.map((src, idx) => (
                 <div key={`new-${idx}`} className="relative group">
                   <img src={src} className="w-full h-32 object-cover rounded" />
-                  <button
-                    type="button"
-                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
-                    title="Remove"
-                    onClick={() => removeNewImage(idx)}
-                  >
-                    <X size={16} />
-                  </button>
+                  {!isView && (
+                    <button
+                      type="button"
+                      className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
+                      title="Remove"
+                      onClick={() => removeNewImage(idx)}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -536,27 +584,31 @@ export function TourFormModal({
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Infos</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => infosArray.append(emptyLangObject())}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add info
-              </Button>
+              {!isView && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => infosArray.append(emptyLangObject())}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add info
+                </Button>
+              )}
             </div>
             {infosArray.fields.map((field, index) => (
               <div key={field.id} className="border rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-sm font-medium">Info #{index + 1}</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => infosArray.remove(index)}
-                  >
-                    Remove
-                  </Button>
+                  {!isView && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => infosArray.remove(index)}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {LANGS.map((lang) => (
@@ -564,46 +616,55 @@ export function TourFormModal({
                       <Input
                         placeholder={`Info ${lang.toUpperCase()}`}
                         {...register(`infos.${index}.name_${lang}` as const)}
+                        {...ro}
                       />
-                      <InlineError
-                        msg={
-                          (errors.infos?.[index] as any)?.[`name_${lang}`]
-                            ?.message
-                        }
-                      />
+                      {!isView && (
+                        <InlineError
+                          msg={
+                            (errors.infos?.[index] as any)?.[`name_${lang}`]
+                              ?.message
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             ))}
-            <InlineError msg={errors.infos?.message as string | undefined} />
+            {!isView && (
+              <InlineError msg={errors.infos?.message as string | undefined} />
+            )}
           </section>
 
           {/* ====== Routes ====== */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Routes</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => routesArray.append(emptyLangObject())}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add route
-              </Button>
+              {!isView && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => routesArray.append(emptyLangObject())}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add route
+                </Button>
+              )}
             </div>
             {routesArray.fields.map((field, index) => (
               <div key={field.id} className="border rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-sm font-medium">Route #{index + 1}</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => routesArray.remove(index)}
-                  >
-                    Remove
-                  </Button>
+                  {!isView && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => routesArray.remove(index)}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {LANGS.map((lang) => (
@@ -611,46 +672,57 @@ export function TourFormModal({
                       <Input
                         placeholder={`Route ${lang.toUpperCase()}`}
                         {...register(`routes.${index}.name_${lang}` as const)}
+                        {...ro}
                       />
-                      <InlineError
-                        msg={
-                          (errors.routes?.[index] as any)?.[`name_${lang}`]
-                            ?.message
-                        }
-                      />
+                      {!isView && (
+                        <InlineError
+                          msg={
+                            (errors.routes?.[index] as any)?.[`name_${lang}`]
+                              ?.message
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             ))}
-            <InlineError msg={errors.routes?.message as string | undefined} />
+            {!isView && (
+              <InlineError msg={errors.routes?.message as string | undefined} />
+            )}
           </section>
 
           {/* ====== Itinerary ====== */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Itinerary</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => itineraryArray.append({ day: 1, activity: "" })}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add day
-              </Button>
+              {!isView && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    itineraryArray.append({ day: 1, activity: "" })
+                  }
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add day
+                </Button>
+              )}
             </div>
             {itineraryArray.fields.map((field, index) => (
               <div key={field.id} className="border rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-sm font-medium">Day #{index + 1}</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => itineraryArray.remove(index)}
-                  >
-                    Remove
-                  </Button>
+                  {!isView && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => itineraryArray.remove(index)}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <div>
@@ -660,26 +732,34 @@ export function TourFormModal({
                       {...register(`itinerary.${index}.day` as const, {
                         valueAsNumber: true,
                       })}
+                      {...ro}
                     />
-                    <InlineError
-                      msg={errors.itinerary?.[index]?.day?.message}
-                    />
+                    {!isView && (
+                      <InlineError
+                        msg={errors.itinerary?.[index]?.day?.message}
+                      />
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <Input
                       placeholder="Activity"
                       {...register(`itinerary.${index}.activity` as const)}
+                      {...ro}
                     />
-                    <InlineError
-                      msg={errors.itinerary?.[index]?.activity?.message}
-                    />
+                    {!isView && (
+                      <InlineError
+                        msg={errors.itinerary?.[index]?.activity?.message}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
             ))}
-            <InlineError
-              msg={errors.itinerary?.message as string | undefined}
-            />
+            {!isView && (
+              <InlineError
+                msg={errors.itinerary?.message as string | undefined}
+              />
+            )}
           </section>
 
           {/* ====== Price Included / Not Included ====== */}
@@ -688,32 +768,37 @@ export function TourFormModal({
             <Input
               type="number"
               {...register("priceAmount", { valueAsNumber: true })}
+              {...ro}
             />
-            <InlineError msg={errors.priceAmount?.message} />
+            {!isView && <InlineError msg={errors.priceAmount?.message} />}
 
             <div className="flex items-center justify-between mt-2">
               <Label required>Included</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => priceIncludedArray.append(emptyLangObject())}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add included
-              </Button>
+              {!isView && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => priceIncludedArray.append(emptyLangObject())}
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add included
+                </Button>
+              )}
             </div>
             {priceIncludedArray.fields.map((field, index) => (
               <div key={field.id} className="border rounded-lg p-3 space-y-2">
                 <div className="flex justify-between items-center">
                   <p className="text-sm font-medium">Included #{index + 1}</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => priceIncludedArray.remove(index)}
-                  >
-                    Remove
-                  </Button>
+                  {!isView && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => priceIncludedArray.remove(index)}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {LANGS.map((lang) => (
@@ -723,33 +808,42 @@ export function TourFormModal({
                         {...register(
                           `priceIncluded.${index}.name_${lang}` as const
                         )}
+                        {...ro}
                       />
-                      <InlineError
-                        msg={
-                          (errors.priceIncluded?.[index] as any)?.[
-                            `name_${lang}`
-                          ]?.message
-                        }
-                      />
+                      {!isView && (
+                        <InlineError
+                          msg={
+                            (errors.priceIncluded?.[index] as any)?.[
+                              `name_${lang}`
+                            ]?.message
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             ))}
-            <InlineError
-              msg={errors.priceIncluded?.message as string | undefined}
-            />
+            {!isView && (
+              <InlineError
+                msg={errors.priceIncluded?.message as string | undefined}
+              />
+            )}
 
             <div className="flex items-center justify-between mt-2">
               <Label required>Not Included</Label>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => priceNotIncludedArray.append(emptyLangObject())}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add not-included
-              </Button>
+              {!isView && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    priceNotIncludedArray.append(emptyLangObject())
+                  }
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add not-included
+                </Button>
+              )}
             </div>
             {priceNotIncludedArray.fields.map((field, index) => (
               <div key={field.id} className="border rounded-lg p-3 space-y-2">
@@ -757,14 +851,16 @@ export function TourFormModal({
                   <p className="text-sm font-medium">
                     Not Included #{index + 1}
                   </p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => priceNotIncludedArray.remove(index)}
-                  >
-                    Remove
-                  </Button>
+                  {!isView && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => priceNotIncludedArray.remove(index)}
+                    >
+                      Remove
+                    </Button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {LANGS.map((lang) => (
@@ -774,26 +870,41 @@ export function TourFormModal({
                         {...register(
                           `priceNotIncluded.${index}.name_${lang}` as const
                         )}
+                        {...ro}
                       />
-                      <InlineError
-                        msg={
-                          (errors.priceNotIncluded?.[index] as any)?.[
-                            `name_${lang}`
-                          ]?.message
-                        }
-                      />
+                      {!isView && (
+                        <InlineError
+                          msg={
+                            (errors.priceNotIncluded?.[index] as any)?.[
+                              `name_${lang}`
+                            ]?.message
+                          }
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             ))}
-            <InlineError
-              msg={errors.priceNotIncluded?.message as string | undefined}
-            />
+            {!isView && (
+              <InlineError
+                msg={errors.priceNotIncluded?.message as string | undefined}
+              />
+            )}
           </section>
 
           <DialogFooter>
-            <Button type="submit">{initialData ? "Update" : "Create"}</Button>
+            {isView ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Close
+              </Button>
+            ) : (
+              <Button type="submit">{initialData ? "Update" : "Create"}</Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

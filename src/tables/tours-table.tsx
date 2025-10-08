@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+
+import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -9,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,46 +20,48 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import type { Tour } from "@/api/tours";
-import { ExternalLink, X } from "lucide-react";
+import { useCities } from "@/api/cities";
+import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 type Props = {
   data: Tour[];
   onEdit: (tour: Tour) => void;
-  // can be sync or async
   onDelete: (id: number) => void | Promise<void>;
+  onView: (tour: Tour) => void; // NEW: let parent open view modal
 };
 
-export function ToursTable({ data, onEdit, onDelete }: Props) {
-  // Image preview modal
-  const [imageOpen, setImageOpen] = useState(false);
-  const [modalImage, setModalImage] = useState<string | null>(null);
+export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
+  const { data: cities = [] } = useCities();
+  const cityMap = useMemo(() => {
+    const m = new Map<number, { name_en: string }>();
+    for (const c of cities) m.set(c.id, { name_en: c.name_en });
+    return m;
+  }, [cities]);
+  const cityName = (id?: number) =>
+    typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
 
-  // Delete confirmation modal
+  // delete modal state (kept here)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Tour | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const openImage = (url: string) => {
-    setModalImage(url);
-    setImageOpen(true);
-  };
-
-  const closeImage = () => {
-    setImageOpen(false);
-    setModalImage(null);
-  };
 
   const askDelete = (tour: Tour) => {
     setPendingDelete(tour);
     setDeleteOpen(true);
   };
-
   const onCloseDelete = (open: boolean) => {
     setDeleteOpen(open);
     if (!open) setPendingDelete(null);
   };
-
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     try {
@@ -69,113 +71,127 @@ export function ToursTable({ data, onEdit, onDelete }: Props) {
       setDeleteOpen(false);
       setPendingDelete(null);
     } catch (e) {
-      // keep dialog open if deletion failed
       setDeleting(false);
       console.error("Failed to delete tour:", e);
     }
   };
 
+  const ImagesCell = ({ images }: { images?: { url: string }[] }) => {
+    const urls = (images ?? []).map((i) => i.url).filter(Boolean);
+    if (!urls.length) return <span>-</span>;
+    const firstTwo = urls.slice(0, 2);
+    const rest = Math.max(0, urls.length - firstTwo.length);
+    return (
+      <div className="flex items-center gap-1">
+        {firstTwo.map((u, i) => (
+          <img
+            key={`${u}-${i}`}
+            src={u}
+            alt={`img-${i}`}
+            className="w-10 h-8 object-cover rounded"
+          />
+        ))}
+        {rest > 0 && (
+          <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+            +{rest}
+          </Badge>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Title (EN)</TableHead>
-            <TableHead>Days</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>City</TableHead>
-            <TableHead>Thumbnail</TableHead>
-            <TableHead>First Image</TableHead>
-            <TableHead>YouTube</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((tour) => (
-            <TableRow key={tour.id}>
-              <TableCell>{tour.id}</TableCell>
-              <TableCell>{tour.title_en}</TableCell>
-              <TableCell>{tour.days || "-"}</TableCell>
-              <TableCell>{tour.type || "-"}</TableCell>
-              <TableCell>{tour.cityId || "-"}</TableCell>
-              <TableCell>
-                {tour.thumbnail ? (
-                  <img
-                    src={tour.thumbnail}
-                    alt="Thumbnail"
-                    className="w-16 h-12 object-cover rounded cursor-pointer"
-                    onClick={() => openImage(tour.thumbnail!)}
-                  />
-                ) : (
-                  "-"
-                )}
-              </TableCell>
-              <TableCell>
-                {tour.images && tour.images[0]?.url ? (
-                  <img
-                    src={tour.images[0].url}
-                    alt="First Image"
-                    className="w-16 h-12 object-cover rounded cursor-pointer"
-                    onClick={() => openImage(tour.images![0].url)}
-                  />
-                ) : (
-                  "-"
-                )}
-              </TableCell>
-              <TableCell>
-                {tour.youtubeLink ? (
-                  <a href={tour.youtubeLink} target="_blank" rel="noreferrer">
-                    <ExternalLink className="w-5 h-5 text-blue-500" />
-                  </a>
-                ) : (
-                  "-"
-                )}
-              </TableCell>
-              <TableCell className="space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onEdit(tour)}
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => askDelete(tour)}
-                >
-                  Delete
-                </Button>
-              </TableCell>
+      <div className="rounded-md border">
+        <Table className="w-full">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[80px]">ID</TableHead>
+              <TableHead className="w-[220px]">Name (EN)</TableHead>
+              <TableHead className="w-[220px]">Name (RU)</TableHead>
+              <TableHead className="w-[120px]">Type</TableHead>
+              <TableHead className="w-[80px]">Days</TableHead>
+              <TableHead className="w-[180px]">Images</TableHead>
+              <TableHead className="w-[120px]">Thumbnail</TableHead>
+              <TableHead className="w-[200px]">City (EN)</TableHead>
+              <TableHead className="text-right w-[120px]">Actions</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
 
-      {/* Image Modal */}
-      <Dialog open={imageOpen} onOpenChange={closeImage}>
-        <DialogContent className="p-0 bg-black max-w-3xl max-h-[90vh] flex justify-center items-center relative">
-          {modalImage && (
-            <>
-              <img
-                src={modalImage}
-                alt="Preview"
-                className="max-h-[90vh] object-contain"
-              />
-              <Button
-                variant="ghost"
-                className="absolute top-2 right-2 text-white"
-                onClick={closeImage}
-              >
-                <X />
-              </Button>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+          <TableBody>
+            {data.map((tour) => (
+              <TableRow key={tour.id}>
+                <TableCell>{tour.id}</TableCell>
+                <TableCell>
+                  <div
+                    className="truncate max-w-[220px]"
+                    title={tour.title_en || ""}
+                  >
+                    {tour.title_en || "-"}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div
+                    className="truncate max-w-[220px]"
+                    title={tour.title_ru || ""}
+                  >
+                    {tour.title_ru || "-"}
+                  </div>
+                </TableCell>
+                <TableCell className="capitalize">{tour.type || "-"}</TableCell>
+                <TableCell>{tour.days ?? "-"}</TableCell>
+                <TableCell>
+                  <ImagesCell images={tour.images} />
+                </TableCell>
+                <TableCell>
+                  {tour.thumbnail ? (
+                    <img
+                      src={tour.thumbnail}
+                      alt="thumb"
+                      className="w-14 h-10 object-cover rounded"
+                    />
+                  ) : (
+                    "-"
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div
+                    className="truncate max-w-[200px]"
+                    title={cityName(tour.cityId)}
+                  >
+                    {cityName(tour.cityId)}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onClick={() => onView(tour)}>
+                        <Eye className="h-4 w-4 mr-2" /> Show
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onEdit(tour)}>
+                        <Pencil className="h-4 w-4 mr-2" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-red-600 focus:text-red-600"
+                        onClick={() => askDelete(tour)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* DELETE CONFIRMATION */}
       <AlertDialog open={deleteOpen} onOpenChange={onCloseDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
