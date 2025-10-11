@@ -1,3 +1,4 @@
+// src/tables/cities-table.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -22,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Eye, Pencil, Trash2, MoreHorizontal } from "lucide-react";
-// If you have a countries hook, we'll use it to show country name_en by id
 import { useCountries } from "@/api/countries";
 
 export function CitiesTable({
@@ -36,18 +36,22 @@ export function CitiesTable({
   onEdit: (c: City) => void;
   onDelete: (id: number) => void | Promise<void>;
 }) {
-  // Optional: build a map of countryId -> country.name_en
-  const { data: countries = [] } = useCountries?.() ?? { data: [] as any[] };
+  // Countries may be an array or a paginated object { data: [] }
+  const countriesQuery = useCountries?.() as any;
+  const countriesRaw = countriesQuery?.data;
+  const countries: any[] = Array.isArray(countriesRaw)
+    ? countriesRaw
+    : countriesRaw?.data ?? [];
+
   const countryMap = useMemo(() => {
     const m = new Map<number, string>();
-    for (const c of countries as any[]) {
+    for (const c of countries) {
       if (c?.id != null) m.set(c.id, c.name_en ?? "");
     }
     return m;
   }, [countries]);
 
   const getCountryName = (city: City) => {
-    // Try nested, then by id map, else dash
     const nested = (city as any)?.country?.name_en;
     const byId =
       typeof (city as any)?.countryId === "number"
@@ -79,7 +83,6 @@ export function CitiesTable({
       setPendingDelete(null);
     } catch (e) {
       setDeleting(false);
-      // keep dialog open if failed
       console.error("Failed to delete city:", e);
     }
   };
@@ -88,9 +91,9 @@ export function CitiesTable({
     { accessorKey: "id", header: "ID" },
     { accessorKey: "name_en", header: "English" },
     { accessorKey: "name_ru", header: "Russian" },
-    { accessorKey: "name_es", header: "Spain" },
+    { accessorKey: "name_es", header: "Spanish" },
     { accessorKey: "name_gr", header: "German" },
-    { accessorKey: "name_jp", header: "Japan" },
+    { accessorKey: "name_jp", header: "Japanese" },
     { accessorKey: "name_zh", header: "Chinese" },
     {
       id: "country",

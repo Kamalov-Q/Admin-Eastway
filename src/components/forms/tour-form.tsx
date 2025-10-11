@@ -38,6 +38,7 @@ const emptyLangObject = () =>
     {} as Record<`name_${Lang}`, string>
   );
 
+// ✅ Added address_xx fields to schema
 const schema = z.object({
   days: z.number().min(1, "Days is required"),
   type: z.enum(["private", "group"] as const, {
@@ -123,8 +124,9 @@ const schema = z.object({
         .string()
         .min(1, `Title (${lang.toUpperCase()}) is required`),
       [`desc_${lang}`]: z.string().optional(),
+      [`address_${lang}`]: z.string().optional(),
     }),
-    {} as Record<`title_${Lang}` | `desc_${Lang}`, any>
+    {} as Record<`title_${Lang}` | `desc_${Lang}` | `address_${Lang}`, any>
   ),
 });
 
@@ -187,6 +189,7 @@ export function TourFormModal({
           ...acc,
           [`title_${lang}`]: "",
           [`desc_${lang}`]: "",
+          [`address_${lang}`]: "",
         }),
         {} as Record<string, string>
       ),
@@ -207,7 +210,7 @@ export function TourFormModal({
     if (initialData) {
       reset({
         days: initialData.days ?? 1,
-        type: (initialData.type as any) ?? ("" as any),
+        type: (initialData.type as any) ?? "",
         cityId: initialData.cityId ?? 0,
         tourCategoryId: initialData.tourCategoryId ?? 0,
         youtubeLink: initialData.youtubeLink ?? "",
@@ -232,6 +235,7 @@ export function TourFormModal({
             ...acc,
             [`title_${lang}`]: (initialData as any)[`title_${lang}`] ?? "",
             [`desc_${lang}`]: (initialData as any)[`desc_${lang}`] ?? "",
+            [`address_${lang}`]: (initialData as any)[`address_${lang}`] ?? "",
           }),
           {} as Record<string, string>
         ),
@@ -247,7 +251,6 @@ export function TourFormModal({
       setNewImagePreviews([]);
     }
   }, [open, initialData, reset]);
-
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
     const file = e.target.files?.[0];
@@ -327,6 +330,7 @@ export function TourFormModal({
           ...acc,
           [`title_${lang}`]: (values as any)[`title_${lang}`],
           [`desc_${lang}`]: (values as any)[`desc_${lang}`],
+          [`address_${lang}`]: (values as any)[`address_${lang}`],
         }),
         {}
       ),
@@ -366,20 +370,22 @@ export function TourFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6">
-          {/* ====== Titles & Descriptions (6 langs) ====== */}
+          {/* ====== Titles & Descriptions & Address (6 langs) ====== */}
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
-                <Label required>Title ({lang.toUpperCase()})</Label>
+                <label className="font-semibold">
+                  Title ({lang.toUpperCase()})
+                </label>
                 <Input {...register(`title_${lang}` as const)} {...ro} />
-                {!isView && (
-                  <InlineError
-                    msg={(errors as any)[`title_${lang}`]?.message}
-                  />
-                )}
-
-                <Label>Description ({lang.toUpperCase()})</Label>
+                <label className="font-semibold">
+                  Description ({lang.toUpperCase()})
+                </label>
                 <Input {...register(`desc_${lang}` as const)} {...ro} />
+                <label className="font-semibold">
+                  Address ({lang.toUpperCase()}) {/* ✅ NEW FIELD */}
+                </label>
+                <Input {...register(`address_${lang}` as const)} {...ro} />
               </div>
             ))}
           </div>

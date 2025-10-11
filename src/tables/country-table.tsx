@@ -43,7 +43,6 @@ export function CountriesTable({
   onEdit: (c: Country) => void;
   onDelete: (id: number) => void | Promise<void>;
 }) {
-  // Delete confirmation (same behavior/style as Tours/Cities tables)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Country | null>(null);
   const [deleting, setDeleting] = useState(false);

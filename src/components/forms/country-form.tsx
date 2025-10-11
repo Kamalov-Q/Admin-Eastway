@@ -48,7 +48,7 @@ export function CountryFormModal({
   const isViewMode = mode === "view";
 
   const { data: cities = [], isLoading: citiesLoading } = useCities({
-    country: initialData?.name_en,
+    country: initialData?.name_en ?? "",
   });
 
   React.useEffect(() => {
@@ -84,6 +84,7 @@ export function CountryFormModal({
           })}
           className="space-y-4"
         >
+          {/* Country multilingual fields */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {LANGUAGE_FIELDS.map((field) => (
               <div key={field.key}>
@@ -102,6 +103,7 @@ export function CountryFormModal({
             ))}
           </div>
 
+          {/* Linked cities (read-only in view mode) */}
           {isViewMode && (
             <div className="mt-6 border-t border-gray-200 pt-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">

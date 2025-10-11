@@ -30,15 +30,81 @@ export type Tour = {
     desc_es?: string;
     title_zh?: string;
     desc_zh?: string;
+    address_en?: string;
+    address_ru?: string;
+    address_gr?: string;
+    address_jp?: string;
+    address_es?: string;
+    address_zh?: string;
 };
 
-export const useTours = () =>
-    useQuery<Tour[]>({ queryKey: ["tours"], queryFn: async () => (await axiosInstance.get("/tours")).data });
+export type ToursQuery = {
+    country?: string;
+    name?: string;
+    city?: string;
+    category?: string;
+    limit?: number;
+    page?: number;
+};
+
+export type Paginated<T> = {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    data: T[];
+};
+
+async function fetchTours(params: ToursQuery = {}): Promise<Paginated<Tour>> {
+    const q: Record<string, string | number> = {};
+    if (params.country?.trim()) q.country = params.country.trim();
+    if (params.name?.trim()) q.name = params.name.trim();
+    if (params.city?.trim()) q.city = params.city.trim();
+    if (params.category?.trim()) q.category = params.category.trim();
+    if (typeof params.limit === "number") q.limit = params.limit;
+    if (typeof params.page === "number") q.page = params.page;
+
+    const { data } = await axiosInstance.get("/tours", { params: q });
+
+    if (Array.isArray(data)) {
+        const page = params.page ?? 1;
+        const limit = params.limit ?? (data.length || 10);
+        return { total: data.length, page, limit, totalPages: 1, data };
+    }
+    if (data?.data && Array.isArray(data.data)) {
+        const page = Number(data.page ?? params.page ?? 1);
+        const limit = Number(data.limit ?? params.limit ?? (data.data.length || 10));
+        const total = Number(data.total ?? data.data.length);
+        const totalPages = Number(
+            data.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1)))
+        );
+        return { total, page, limit, totalPages, data: data.data as Tour[] };
+    }
+    return {
+        total: (data?.length ?? 0),
+        page: params.page ?? 1,
+        limit: params.limit ?? (data?.length ?? 10),
+        totalPages: 1,
+        data: (data?.data ?? data ?? []) as Tour[],
+    };
+}
+
+export function useTours(params: ToursQuery = {}) {
+    return useQuery({
+        queryKey: ["tours", params],
+        queryFn: () => fetchTours(params),
+        // Works in v4/v5: keeps previous data during refetch (no flicker)
+        placeholderData: (prev) => prev,
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+    });
+}
 
 export const useCreateTour = () => {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (payload: Partial<Tour>) => axiosInstance.post("/tours", payload).then(r => r.data),
+        mutationFn: (payload: Partial<Tour>) =>
+            axiosInstance.post("/tours", payload).then((r) => r.data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["tours"] }),
     });
 };
@@ -47,7 +113,7 @@ export const useUpdateTour = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, payload }: { id: number; payload: Partial<Tour> }) =>
-            axiosInstance.patch(`/tours/${id}`, payload).then(r => r.data),
+            axiosInstance.patch(`/tours/${id}`, payload).then((r) => r.data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["tours"] }),
     });
 };

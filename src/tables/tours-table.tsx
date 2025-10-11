@@ -1,6 +1,4 @@
-"use client";
-
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -30,13 +28,12 @@ import { Badge } from "@/components/ui/badge";
 import type { Tour } from "@/api/tours";
 import { useCities } from "@/api/cities";
 import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
 
 type Props = {
   data: Tour[];
   onEdit: (tour: Tour) => void;
   onDelete: (id: number) => void | Promise<void>;
-  onView: (tour: Tour) => void; // NEW: let parent open view modal
+  onView: (tour: Tour) => void;
 };
 
 export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
@@ -46,10 +43,10 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
     for (const c of cities) m.set(c.id, { name_en: c.name_en });
     return m;
   }, [cities]);
+
   const cityName = (id?: number) =>
     typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
 
-  // delete modal state (kept here)
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Tour | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -102,7 +99,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
 
   return (
     <>
-      <div className="rounded-md border">
+      <div className="rounded-md">
         <Table className="w-full">
           <TableHeader>
             <TableRow>
@@ -114,6 +111,8 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
               <TableHead className="w-[180px]">Images</TableHead>
               <TableHead className="w-[120px]">Thumbnail</TableHead>
               <TableHead className="w-[200px]">City (EN)</TableHead>
+              {/* ✅ NEW COLUMN */}
+              <TableHead className="w-[250px]">Address (EN)</TableHead>
               <TableHead className="text-right w-[120px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -160,6 +159,15 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                     title={cityName(tour.cityId)}
                   >
                     {cityName(tour.cityId)}
+                  </div>
+                </TableCell>
+                {/* ✅ SHOW ADDRESS_EN */}
+                <TableCell>
+                  <div
+                    className="truncate max-w-[250px]"
+                    title={tour.address_en || ""}
+                  >
+                    {tour.address_en || "-"}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
