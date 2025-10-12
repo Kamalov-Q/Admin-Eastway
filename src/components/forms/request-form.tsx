@@ -1,69 +1,88 @@
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+"use client";
+
+import * as React from "react";
 import {
+  Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useCreateRequest, useUpdateRequest } from "@/api/requests";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import type { Request } from "@/api/requests";
 
-const schema = z.object({
-  hotelId: z.number().optional(),
-  tourId: z.number().optional(),
-  message: z.string().min(2),
-});
+type Props = {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  request: Request | null;
+  onSubmit: (status: "active" | "passive") => Promise<void> | void;
+  isSubmitting?: boolean;
+};
 
-type Props = { request?: Request; onSuccess: () => void };
+export function RequestFormModal({
+  open,
+  onOpenChange,
+  request,
+  onSubmit,
+  isSubmitting,
+}: Props) {
+  const [value, setValue] = React.useState<"active" | "passive">("active");
 
-export function RequestForm({ request, onSuccess }: Props) {
-  const form = useForm<z.infer<typeof schema>>({
-    resolver: zodResolver(schema),
-    defaultValues: request
-      ? {
-          hotelId: request.hotelId,
-          tourId: request.tourId,
-          message: request.message,
-        }
-      : { hotelId: undefined, tourId: undefined, message: "" },
-  });
-
-  const createMutation = useCreateRequest();
-  const updateMutation = useUpdateRequest();
-
-  const onSubmit = async (values: z.infer<typeof schema>) => {
-    if (request) {
-      await updateMutation.mutateAsync({ id: request.id, data: values });
-    } else {
-      await createMutation.mutateAsync(values);
+  React.useEffect(() => {
+    if (open && request?.status) {
+      setValue(request.status);
     }
-    onSuccess();
-  };
+  }, [open, request?.status]);
 
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{request ? "Edit Request" : "Add Request"}</DialogTitle>
-      </DialogHeader>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <Input
-          type="number"
-          placeholder="Hotel ID"
-          {...form.register("hotelId", { valueAsNumber: true })}
-        />
-        <Input
-          type="number"
-          placeholder="Tour ID"
-          {...form.register("tourId", { valueAsNumber: true })}
-        />
-        <Input placeholder="Message" {...form.register("message")} />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Update status</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="text-sm text-gray-600">
+            {request ? (
+              <>
+                Request <b>#{request.id}</b> ({request.firstName}{" "}
+                {request.lastName})
+              </>
+            ) : (
+              "—"
+            )}
+          </div>
+
+          <RadioGroup
+            value={value}
+            onValueChange={(v: "active" | "passive") => setValue(v)}
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem id="req-active" value="active" />
+              <Label htmlFor="req-active">Active</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem id="req-passive" value="passive" />
+              <Label htmlFor="req-passive">Passive</Label>
+            </div>
+          </RadioGroup>
+        </div>
+
         <DialogFooter>
-          <Button type="submit">{request ? "Update" : "Create"}</Button>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={!!isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button onClick={() => onSubmit(value)} disabled={!!isSubmitting}>
+            {isSubmitting ? "Saving…" : "Save"}
+          </Button>
         </DialogFooter>
-      </form>
-    </DialogContent>
+      </DialogContent>
+    </Dialog>
   );
 }
