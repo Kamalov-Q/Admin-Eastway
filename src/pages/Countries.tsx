@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { CountriesTable } from "@/tables/country-table";
 import { CountryFormModal } from "@/components/forms/country-form";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 
 function useDebounced<T>(value: T, delay = 200) {
   const [v, setV] = React.useState(value);
@@ -53,7 +54,16 @@ export default function CountriesPage() {
   const update = useUpdateCountry();
   const remove = useDeleteCountry();
 
-  const handleSubmit = (payload: Partial<Country>) => {
+  // One-time toast for query error
+  const errorNotifiedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (isError && !errorNotifiedRef.current) {
+      toast.error((error as any)?.message ?? "Failed to load countries.");
+      errorNotifiedRef.current = true;
+    }
+  }, [isError, error]);
+
+  const handleSubmit = async (payload: Partial<Country>) => {
     const cleanPayload = {
       name_en: payload.name_en,
       name_ru: payload.name_ru,
@@ -64,11 +74,28 @@ export default function CountriesPage() {
     };
 
     if (modalMode === "edit" && selectedCountry) {
-      update.mutate({ id: selectedCountry.id, payload: cleanPayload });
+      await toast.promise(
+        update.mutateAsync({ id: selectedCountry.id, payload: cleanPayload }),
+        {
+          loading: "Updating country…",
+          success: `Country updated${
+            cleanPayload.name_en ? ` (${cleanPayload.name_en})` : ""
+          }`,
+          error: (e) => (e as any)?.message || "Failed to update country",
+        }
+      );
     } else if (modalMode === "create") {
-      create.mutate(cleanPayload);
+      await toast.promise(create.mutateAsync(cleanPayload), {
+        loading: "Creating country…",
+        success: `Country created${
+          cleanPayload.name_en ? ` (${cleanPayload.name_en})` : ""
+        }`,
+        error: (e) => (e as any)?.message || "Failed to create country",
+      });
     }
+
     setModalOpen(false);
+    setSelectedCountry(null);
   };
 
   const countries = countriesPage?.data ?? [];
@@ -83,16 +110,17 @@ export default function CountriesPage() {
     setPage(1);
   }, [debouncedSearch]);
 
-  if (isLoading) return <div>Loading countries...</div>;
-  if (isError) return <div>Error: {(error as any)?.message}</div>;
+  if (isLoading) return <div className="p-6">Loading countries...</div>;
+  if (isError)
+    return (
+      <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
+    );
 
   return (
     <div className="p-6 bg-gradient-to-b from-gray-50 via-white to-gray-100 min-h-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
-        <h1 className="text-2xl font-bold">
-           Countries Management
-        </h1>
+        <h1 className="text-2xl font-bold">Countries Management</h1>
         <div className="flex items-center gap-2">
           <Button
             onClick={() => {
@@ -159,7 +187,15 @@ export default function CountriesPage() {
             setModalMode("edit");
             setModalOpen(true);
           }}
-          onDelete={(id) => remove.mutate(id)}
+          onDelete={(id) =>
+            toast
+              .promise(remove.mutateAsync(id), {
+                loading: "Deleting country…",
+                success: "Country deleted",
+                error: (e) => (e as any)?.message || "Failed to delete country",
+              })
+              .then(() => {})
+          }
         />
       </div>
 

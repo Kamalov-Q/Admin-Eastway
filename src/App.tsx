@@ -16,6 +16,7 @@ import HotelsPage from "./pages/Hotels";
 import NotFoundPage from "./pages/NotFound";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
+import ReviewsPage from "./pages/Reviews";
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token } = useAuthStore();
@@ -66,6 +67,7 @@ export default function AppRouter() {
             <Route path="cities" element={<CitiesPage />} />
             <Route path="tours" element={<ToursPage />} />
             <Route path="hotels" element={<HotelsPage />} />
+            <Route path="reviews" element={<ReviewsPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />
