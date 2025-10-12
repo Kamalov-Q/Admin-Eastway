@@ -24,7 +24,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import type { Tour } from "@/api/tours";
 import { useCities } from "@/api/cities";
 import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
@@ -76,22 +75,25 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
   const ImagesCell = ({ images }: { images?: { url: string }[] }) => {
     const urls = (images ?? []).map((i) => i.url).filter(Boolean);
     if (!urls.length) return <span>-</span>;
-    const firstTwo = urls.slice(0, 2);
-    const rest = Math.max(0, urls.length - firstTwo.length);
+
+    const first = urls[0];
+    const rest = Math.max(0, urls.length - 1);
+
     return (
-      <div className="flex items-center gap-1">
-        {firstTwo.map((u, i) => (
-          <img
-            key={`${u}-${i}`}
-            src={u}
-            alt={`img-${i}`}
-            className="w-10 h-8 object-cover rounded"
-          />
-        ))}
+      <div className="relative inline-block">
+        <img
+          src={first}
+          alt="img-0"
+          className="w-10 h-8 object-cover rounded"
+        />
+
         {rest > 0 && (
-          <Badge variant="secondary" className="text-[10px] px-2 py-0.5">
+          <span
+            className="pointer-events-none absolute -bottom-1 -right-1 rounded-full bg-black/70 text-white text-[10px] leading-none px-1.5 py-1 shadow-md"
+            title={`+${rest} more`}
+          >
             +{rest}
-          </Badge>
+          </span>
         )}
       </div>
     );
@@ -104,8 +106,8 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[80px]">ID</TableHead>
-              <TableHead className="w-[220px]">Name (EN)</TableHead>
-              <TableHead className="w-[220px]">Name (RU)</TableHead>
+              <TableHead className="w-[200px]">Name (EN)</TableHead>
+              <TableHead className="w-[200px]">Name (RU)</TableHead>
               <TableHead className="w-[120px]">Type</TableHead>
               <TableHead className="w-[80px]">Days</TableHead>
               <TableHead className="w-[180px]">Images</TableHead>
@@ -123,7 +125,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                 <TableCell>{tour.id}</TableCell>
                 <TableCell>
                   <div
-                    className="truncate max-w-[220px]"
+                    className="truncate max-w-[180px]"
                     title={tour.title_en || ""}
                   >
                     {tour.title_en || "-"}
@@ -131,7 +133,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                 </TableCell>
                 <TableCell>
                   <div
-                    className="truncate max-w-[220px]"
+                    className="truncate max-w-[180px]"
                     title={tour.title_ru || ""}
                   >
                     {tour.title_ru || "-"}

@@ -80,7 +80,6 @@ export default function CountriesPage() {
   const canNext = currentPage < totalPages;
 
   React.useEffect(() => {
-    // when search changes, go back to page 1
     setPage(1);
   }, [debouncedSearch]);
 
@@ -107,7 +106,6 @@ export default function CountriesPage() {
         </div>
       </div>
 
-      {/* Toolbar (search + page size) */}
       <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-2">
           <Input

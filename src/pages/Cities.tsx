@@ -1,7 +1,7 @@
 // app/(your-route)/cities/page.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,6 +14,8 @@ import {
 import { CitiesTable } from "@/tables/cities-table";
 import { CityFormModal } from "@/components/forms/city-form";
 import { Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = useState(value);
@@ -54,6 +56,15 @@ export default function CitiesPage() {
 
   useEffect(() => setPage(1), [debouncedSearch]);
 
+  // One-time toast for query errors
+  const errorNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (isError && !errorNotifiedRef.current) {
+      toast.error((error as any)?.message ?? "Failed to load cities.");
+      errorNotifiedRef.current = true;
+    }
+  }, [isError, error]);
+
   const openCreate = () => {
     setSelectedCity(null);
     setModalMode("create");
@@ -70,36 +81,87 @@ export default function CitiesPage() {
     setModalOpen(true);
   };
 
-  const handleSubmit = (
+  const handleSubmit = async (
     payload: Partial<City>,
     mode: "create" | "edit",
     city?: City | null
   ) => {
     if (mode === "edit" && city?.id) {
-      updateCity.mutate(
-        { id: city.id, payload }, // only form fields are passed; hook sanitizes to 6 langs + countryId
+      await toast.promise(
+        updateCity.mutateAsync(
+          { id: city.id, payload } // your hook sanitizes fields
+        ),
         {
-          onSuccess: () => {
-            setModalOpen(false);
-            setSelectedCity(null);
-          },
+          loading: "Updating city…",
+          success: `City updated${
+            payload?.name_en ? ` (${payload.name_en})` : ""
+          }`,
+          error: (e) => (e as any)?.message || "Failed to update city",
         }
       );
     } else {
-      createCity.mutate(payload, {
-        onSuccess: () => {
-          setModalOpen(false);
-          setSelectedCity(null);
-        },
+      await toast.promise(createCity.mutateAsync(payload), {
+        loading: "Creating city…",
+        success: `City created${
+          payload?.name_en ? ` (${payload.name_en})` : ""
+        }`,
+        error: (e) => (e as any)?.message || "Failed to create city",
       });
     }
+    setModalOpen(false);
+    setSelectedCity(null);
   };
 
-  if (!cities && isLoading) return <div className="p-6">Loading cities...</div>;
-  if (isError)
+  const handleDelete = async (id: number) => {
+    await toast.promise(deleteCity.mutateAsync(id), {
+      loading: "Deleting city…",
+      success: "City deleted",
+      error: (e) => (e as any)?.message || "Failed to delete city",
+    });
+  };
+
+  if (!cities && isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <Skeleton className="h-9 w-64" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+        </div>
+
+        <div className="border rounded-lg p-2 bg-white">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 py-3 border-b last:border-b-0"
+            >
+              <Skeleton className="h-5 w-10" />
+              <Skeleton className="h-5 w-56" />
+              <Skeleton className="h-5 w-56" />
+              <div className="ml-auto flex items-center gap-2">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
     return (
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -150,11 +212,10 @@ export default function CitiesPage() {
           data={cities || []}
           onView={openView}
           onEdit={openEdit}
-          onDelete={(id) => deleteCity.mutate(id)}
+          onDelete={handleDelete}
         />
       </div>
 
-      {/* Simple pagination (server paginates by page/limit) */}
       <div className="flex items-center justify-end gap-2">
         <Button
           variant="outline"
