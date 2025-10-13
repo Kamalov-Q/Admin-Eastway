@@ -12,10 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { Tour } from "@/api/tours";
+import { useTours, type Tour } from "@/api/tours";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
 import { X, Plus, Trash2, Check } from "lucide-react";
+
 import { useCities } from "@/api/cities";
+import { useTourCategories, type Category } from "@/api/tour-category";
+import { type TourTariff } from "@/api/tour-tariff";
+
 import {
   Popover,
   PopoverContent,
@@ -38,7 +42,7 @@ const emptyLangObject = () =>
     {} as Record<`name_${Lang}`, string>
   );
 
-// ✅ Added address_xx fields to schema
+// ====== schema (add tariffIds optional) ======
 const schema = z.object({
   days: z.number().min(1, "Days is required"),
   type: z.enum(["private", "group"] as const, {
@@ -117,6 +121,7 @@ const schema = z.object({
       )
     )
     .min(1, "Add at least one not-included item"),
+  // titles, desc, address
   ...LANGS.reduce(
     (acc, lang) => ({
       ...acc,
@@ -128,6 +133,8 @@ const schema = z.object({
     }),
     {} as Record<`title_${Lang}` | `desc_${Lang}` | `address_${Lang}`, any>
   ),
+  // NEW: tariffs attachment (optional)
+  // tariffIds: z.array(z.number()).optional(),
 });
 
 export type TourFormValues = z.infer<typeof schema>;
@@ -137,7 +144,6 @@ type Props = {
   onOpenChange: (val: boolean) => void;
   initialData?: Tour | null;
   onSubmit: (values: Partial<Tour>) => Promise<void> | void;
-  /** "create" | "edit" | "view" */
   mode?: "create" | "edit" | "view";
 };
 
@@ -160,7 +166,43 @@ export function TourFormModal({
   const [existingImageUrls, setExistingImageUrls] = React.useState<string[]>(
     []
   );
-  const { data: cities = [], isLoading } = useCities();
+
+  const { data: cities = [], isLoading: citiesLoading } = useCities();
+
+  // categories
+  const tourCatsQuery = useTourCategories();
+  const categories: Category[] = React.useMemo(() => {
+    const raw = tourCatsQuery.data as any;
+    return Array.isArray(raw) ? raw : raw?.data ?? [];
+  }, [tourCatsQuery.data]);
+
+  const categoryLabel = (c?: Category) =>
+    c
+      ? c.name_en ||
+        c.name_ru ||
+        c.name_es ||
+        c.name_gr ||
+        c.name_jp ||
+        c.name_zh ||
+        `#${c.id}`
+      : "";
+
+  // tariffs to attach
+  const tariffsQuery = useTours({ limit: 1000 });
+  const tariffs: TourTariff[] = React.useMemo(() => {
+    const raw = tariffsQuery.data as any;
+    return Array.isArray(raw) ? raw : raw?.data ?? [];
+  }, [tariffsQuery.data]);
+
+  // derive initial tariff ids: prefer direct field, fallback to relation array
+  const derivedInitialTariffIds = React.useMemo<number[]>(() => {
+    const direct: number[] = (initialData as any)?.tariffIds ?? [];
+    if (direct?.length) return direct;
+    const fromRel =
+      ((initialData as any)?.tariff as any[])?.map((x: any) => x.tariffId) ??
+      [];
+    return fromRel;
+  }, [initialData]);
 
   const {
     register,
@@ -173,28 +215,80 @@ export function TourFormModal({
   } = useForm<TourFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      days: 1,
-      type: "" as any,
-      cityId: 0,
-      tourCategoryId: 0,
-      youtubeLink: "",
-      infos: [emptyLangObject()],
-      routes: [emptyLangObject()],
-      itinerary: [{ day: 1, activity: "" }],
-      priceAmount: 1,
-      priceIncluded: [emptyLangObject()],
-      priceNotIncluded: [emptyLangObject()],
+      days: initialData?.days ?? 1,
+      type: (initialData?.type as any) ?? ("" as any),
+      cityId: initialData?.cityId ?? 0,
+      tourCategoryId: initialData?.tourCategoryId ?? 0,
+      youtubeLink: initialData?.youtubeLink ?? "",
+      infos: initialData?.infos?.length
+        ? (initialData.infos as any)
+        : [emptyLangObject()],
+      routes: initialData?.routes?.length
+        ? (initialData.routes as any)
+        : [emptyLangObject()],
+      itinerary: initialData?.itinerary?.length
+        ? initialData.itinerary
+        : [{ day: 1, activity: "" }],
+      priceAmount: initialData?.price?.amount ?? 1,
+      priceIncluded: initialData?.price?.included?.length
+        ? (initialData.price.included as any)
+        : [emptyLangObject()],
+      priceNotIncluded: initialData?.price?.notIncluded?.length
+        ? (initialData.price.notIncluded as any)
+        : [emptyLangObject()],
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
-          [`title_${lang}`]: "",
-          [`desc_${lang}`]: "",
-          [`address_${lang}`]: "",
+          [`title_${lang}`]: (initialData as any)?.[`title_${lang}`] ?? "",
+          [`desc_${lang}`]: (initialData as any)?.[`desc_${lang}`] ?? "",
+          [`address_${lang}`]: (initialData as any)?.[`address_${lang}`] ?? "",
         }),
         {} as Record<string, string>
       ),
+      // tariffIds: derivedInitialTariffIds,
     },
   });
+
+  React.useEffect(() => {
+    if (!open) return;
+    reset({
+      days: initialData?.days ?? 1,
+      type: (initialData?.type as any) ?? ("" as any),
+      cityId: initialData?.cityId ?? 0,
+      tourCategoryId: initialData?.tourCategoryId ?? 0,
+      youtubeLink: initialData?.youtubeLink ?? "",
+      infos: initialData?.infos?.length
+        ? (initialData.infos as any)
+        : [emptyLangObject()],
+      routes: initialData?.routes?.length
+        ? (initialData.routes as any)
+        : [emptyLangObject()],
+      itinerary: initialData?.itinerary?.length
+        ? initialData.itinerary
+        : [{ day: 1, activity: "" }],
+      priceAmount: initialData?.price?.amount ?? 1,
+      priceIncluded: initialData?.price?.included?.length
+        ? (initialData.price.included as any)
+        : [emptyLangObject()],
+      priceNotIncluded: initialData?.price?.notIncluded?.length
+        ? (initialData.price.notIncluded as any)
+        : [emptyLangObject()],
+      ...LANGS.reduce(
+        (acc, lang) => ({
+          ...acc,
+          [`title_${lang}`]: (initialData as any)?.[`title_${lang}`] ?? "",
+          [`desc_${lang}`]: (initialData as any)?.[`desc_${lang}`] ?? "",
+          [`address_${lang}`]: (initialData as any)?.[`address_${lang}`] ?? "",
+        }),
+        {} as Record<string, string>
+      ),
+      // tariffIds: derivedInitialTariffIds,
+    });
+    setThumbnailPreview(initialData?.thumbnail ?? null);
+    setExistingImageUrls(initialData?.images?.map((i) => i.url) ?? []);
+    setNewImageFiles([]);
+    setNewImagePreviews([]);
+  }, [open, initialData, reset, derivedInitialTariffIds]);
 
   const infosArray = useFieldArray({ control, name: "infos" });
   const routesArray = useFieldArray({ control, name: "routes" });
@@ -205,52 +299,6 @@ export function TourFormModal({
     name: "priceNotIncluded",
   });
 
-  React.useEffect(() => {
-    if (!open) return;
-    if (initialData) {
-      reset({
-        days: initialData.days ?? 1,
-        type: (initialData.type as any) ?? "",
-        cityId: initialData.cityId ?? 0,
-        tourCategoryId: initialData.tourCategoryId ?? 0,
-        youtubeLink: initialData.youtubeLink ?? "",
-        infos: initialData.infos?.length
-          ? (initialData.infos as any)
-          : [emptyLangObject()],
-        routes: initialData.routes?.length
-          ? (initialData.routes as any)
-          : [emptyLangObject()],
-        itinerary: initialData.itinerary?.length
-          ? initialData.itinerary
-          : [{ day: 1, activity: "" }],
-        priceAmount: initialData.price?.amount ?? 1,
-        priceIncluded: initialData.price?.included?.length
-          ? (initialData.price.included as any)
-          : [emptyLangObject()],
-        priceNotIncluded: initialData.price?.notIncluded?.length
-          ? (initialData.price.notIncluded as any)
-          : [emptyLangObject()],
-        ...LANGS.reduce(
-          (acc, lang) => ({
-            ...acc,
-            [`title_${lang}`]: (initialData as any)[`title_${lang}`] ?? "",
-            [`desc_${lang}`]: (initialData as any)[`desc_${lang}`] ?? "",
-            [`address_${lang}`]: (initialData as any)[`address_${lang}`] ?? "",
-          }),
-          {} as Record<string, string>
-        ),
-      });
-      setThumbnailPreview(initialData.thumbnail ?? null);
-      setExistingImageUrls(initialData.images?.map((i) => i.url) ?? []);
-      setNewImageFiles([]);
-      setNewImagePreviews([]);
-    } else {
-      setThumbnailPreview(null);
-      setExistingImageUrls([]);
-      setNewImageFiles([]);
-      setNewImagePreviews([]);
-    }
-  }, [open, initialData, reset]);
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
     const file = e.target.files?.[0];
@@ -334,6 +382,10 @@ export function TourFormModal({
         }),
         {}
       ),
+      // NEW: attach tariffs if chosen
+      // ...(values.tariffIds && values.tariffIds.length
+      //   ? { tariffIds: values.tariffIds }
+      //   : {}),
     };
 
     await onSubmit(payload);
@@ -358,7 +410,30 @@ export function TourFormModal({
   const selectedCityId = watch("cityId");
   const selectedCity = cities.find((c) => c.id === selectedCityId);
 
+  const selectedCategoryId = watch("tourCategoryId");
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+
   const ro = isView ? { readOnly: true, disabled: true } : {};
+
+  // Tariff multi-select
+  // const [openTariffs, setOpenTariffs] = React.useState(false);
+  // const selectedTariffIds = watch("tariffIds") || [];
+  // const selectedTariffs = React.useMemo(
+  //   () =>
+  //     selectedTariffIds
+  //       .map((id) => tariffs.find((t) => t.id === id))
+  //       .filter(Boolean) as TourTariff[],
+  //   [selectedTariffIds, tariffs]
+  // );
+
+  // const toggleTariff = (id: number) => {
+  //   if (isView) return;
+  //   const exists = selectedTariffIds.includes(id);
+  //   const next = exists
+  //     ? selectedTariffIds.filter((x: number) => x !== id)
+  //     : [...selectedTariffIds, id];
+  //   setValue("tariffIds", next, { shouldValidate: false });
+  // };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -370,7 +445,7 @@ export function TourFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6">
-          {/* ====== Titles & Descriptions & Address (6 langs) ====== */}
+          {/* Titles / Desc / Address across languages */}
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
@@ -383,14 +458,14 @@ export function TourFormModal({
                 </label>
                 <Input {...register(`desc_${lang}` as const)} {...ro} />
                 <label className="font-semibold">
-                  Address ({lang.toUpperCase()}) {/* ✅ NEW FIELD */}
+                  Address ({lang.toUpperCase()})
                 </label>
                 <Input {...register(`address_${lang}` as const)} {...ro} />
               </div>
             ))}
           </div>
 
-          {/* ====== Basic fields ====== */}
+          {/* Basics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label required>Days</Label>
@@ -422,7 +497,7 @@ export function TourFormModal({
               {!isView && <InlineError msg={errors.type?.message} />}
             </div>
 
-            {/* City (searchable when editing; read-only text when viewing) */}
+            {/* City combobox */}
             <div>
               <Label required>City</Label>
               {isView ? (
@@ -455,7 +530,7 @@ export function TourFormModal({
                               ? ` - ${selectedCity.name_ru}`
                               : ""
                           }`
-                        : isLoading
+                        : citiesLoading
                         ? "Loading..."
                         : "Select a city"}
                     </Button>
@@ -494,13 +569,69 @@ export function TourFormModal({
               {!isView && <InlineError msg={errors.cityId?.message} />}
             </div>
 
+            {/* Category combobox */}
             <div>
-              <Label required>Category ID</Label>
-              <Input
-                type="number"
-                {...register("tourCategoryId", { valueAsNumber: true })}
-                {...ro}
-              />
+              <Label required>Category</Label>
+              {isView ? (
+                <Input
+                  value={
+                    categoryLabel(selectedCategory) ||
+                    (initialData?.tourCategoryId
+                      ? `#${initialData.tourCategoryId}`
+                      : "")
+                  }
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-between"
+                      disabled={tourCatsQuery.isLoading}
+                    >
+                      {tourCatsQuery.isLoading
+                        ? "Loading categories…"
+                        : selectedCategory
+                        ? categoryLabel(selectedCategory)
+                        : "Select a category"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search category…" />
+                      <CommandEmpty>No category found.</CommandEmpty>
+                      <CommandGroup className="max-h-64 overflow-auto">
+                        {categories.map((c) => {
+                          const lbl = categoryLabel(c);
+                          const checked = c.id === selectedCategoryId;
+                          return (
+                            <CommandItem
+                              key={c.id}
+                              value={lbl}
+                              onSelect={() =>
+                                setValue("tourCategoryId", c.id, {
+                                  shouldValidate: true,
+                                })
+                              }
+                              className="flex items-center justify-between"
+                            >
+                              <div className="truncate">{lbl}</div>
+                              <Check
+                                className={`h-4 w-4 ${
+                                  checked ? "opacity-100" : "opacity-0"
+                                }`}
+                              />
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
               {!isView && <InlineError msg={errors.tourCategoryId?.message} />}
             </div>
 
@@ -515,7 +646,7 @@ export function TourFormModal({
             </div>
           </div>
 
-          {/* ====== Thumbnail ====== */}
+          {/* Thumbnail */}
           <div>
             <Label required>Thumbnail</Label>
             {!isView && (
@@ -541,7 +672,7 @@ export function TourFormModal({
             )}
           </div>
 
-          {/* ====== Images (existing + new previews) ====== */}
+          {/* Images */}
           <div>
             <Label required>Tour Images</Label>
             {!isView && (
@@ -586,7 +717,7 @@ export function TourFormModal({
             </div>
           </div>
 
-          {/* ====== Infos ====== */}
+          {/* Infos */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Infos</Label>
@@ -642,7 +773,7 @@ export function TourFormModal({
             )}
           </section>
 
-          {/* ====== Routes ====== */}
+          {/* Routes */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Routes</Label>
@@ -698,7 +829,7 @@ export function TourFormModal({
             )}
           </section>
 
-          {/* ====== Itinerary ====== */}
+          {/* Itinerary */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Itinerary</Label>
@@ -768,7 +899,7 @@ export function TourFormModal({
             )}
           </section>
 
-          {/* ====== Price Included / Not Included ====== */}
+          {/* Price / Included / Not included */}
           <section className="space-y-3">
             <Label required>Price Amount</Label>
             <Input
@@ -898,6 +1029,74 @@ export function TourFormModal({
               />
             )}
           </section>
+
+          {/* Tariffs multi-select (attach existing tariffs to this tour) */}
+          {/* <section className="space-y-2">
+            <Label>Attach Tariffs</Label>
+            <Popover open={openTariffs} onOpenChange={setOpenTariffs}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between"
+                  disabled={isView || tariffsQuery.isLoading}
+                >
+                  {tariffsQuery.isLoading
+                    ? "Loading tariffs…"
+                    : selectedTariffs.length
+                    ? `${selectedTariffs.length} selected`
+                    : "Select tariff(s)"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[420px] p-0 max-h-[60vh] overflow-y-auto">
+                <Command>
+                  <CommandInput placeholder="Search tariffs…" />
+                  <CommandEmpty>No tariffs found.</CommandEmpty>
+                  <CommandGroup>
+                    {tariffs.map((t) => {
+                      const checked = selectedTariffIds.includes(t.id);
+                      const label = t.name || `#${t.id}`;
+                      return (
+                        <CommandItem
+                          key={t.id}
+                          value={label}
+                          onSelect={() => toggleTariff(t.id)}
+                          className="flex items-center justify-between"
+                        >
+                          <div className="truncate">{label}</div>
+                          <Check
+                            className={`h-4 w-4 ${
+                              checked ? "opacity-100" : "opacity-0"
+                            }`}
+                          />
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            <div className="flex flex-wrap gap-2 mt-1">
+              {selectedTariffs.map((t) => (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs"
+                >
+                  {t.name || `#${t.id}`}
+                  {!isView && (
+                    <button
+                      type="button"
+                      className="ml-1 hover:opacity-70"
+                      onClick={() => toggleTariff(t.id)}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          </section> */}
 
           <DialogFooter>
             {isView ? (

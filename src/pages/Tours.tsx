@@ -11,6 +11,7 @@ import {
 } from "@/api/tours";
 import { useCountries, type Country } from "@/api/countries";
 import { useCities, type City } from "@/api/cities";
+import { useTourCategories, type Category } from "@/api/tour-category";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-const ALL = "__ALL__"; // sentinel: never pass empty string to Radix <SelectItem>
+const ALL = "__ALL__"; // sentinel
 
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = React.useState(value);
@@ -47,7 +48,7 @@ export default function ToursPage() {
   const [country, setCountry] = React.useState<string>("");
   const [city, setCity] = React.useState<string>("");
   const [name, setName] = React.useState<string>("");
-  const [category, setCategory] = React.useState<string>("");
+  const [category, setCategory] = React.useState<string>(""); // string label filter
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
 
@@ -68,12 +69,19 @@ export default function ToursPage() {
   });
   const cities: City[] = citiesQuery.data ?? [];
 
+  // categories for the toolbar Select (keeps your query as string)
+  const tourCatsQuery = useTourCategories();
+  const catsRaw = tourCatsQuery.data as any;
+  const tourCategories: Category[] = Array.isArray(catsRaw)
+    ? catsRaw
+    : catsRaw?.data ?? [];
+
   const params = React.useMemo<ToursQuery>(
     () => ({
       country: dCountry || undefined,
       city: dCity || undefined,
       name: dName || undefined,
-      category: dCategory || undefined,
+      category: dCategory || undefined, // your backend expects a name-like string
       page,
       limit,
     }),
@@ -157,6 +165,15 @@ export default function ToursPage() {
     (c as any).name_es ||
     String(c.id);
 
+  const catLabel = (c: Category) =>
+    c.name_en ||
+    c.name_ru ||
+    c.name_es ||
+    c.name_gr ||
+    c.name_jp ||
+    c.name_zh ||
+    `#${c.id}`;
+
   return (
     <div className="p-6">
       <div className="flex justify-between mb-4">
@@ -165,7 +182,7 @@ export default function ToursPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-7 gap-3">
         {/* Country */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Country</label>
@@ -234,14 +251,30 @@ export default function ToursPage() {
           />
         </div>
 
-        {/* Category */}
+        {/* Category (string filter) */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Category</label>
-          <Input
-            placeholder="Filter by category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
+          <Select
+            value={category || undefined}
+            onValueChange={(v) => setCategory(v === ALL ? "" : v)}
+            disabled={tourCatsQuery.isLoading}
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  tourCatsQuery.isLoading ? "Loading..." : "All categories"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All categories</SelectItem>
+              {tourCategories.map((tc) => (
+                <SelectItem key={tc.id} value={catLabel(tc)}>
+                  {catLabel(tc)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Rows */}
@@ -332,7 +365,7 @@ export default function ToursPage() {
         mode="view"
       />
 
-      {/* Delete dialog (page-level) */}
+      {/* Delete dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

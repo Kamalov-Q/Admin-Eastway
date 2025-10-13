@@ -12,6 +12,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Tag,
+  Ticket,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -26,6 +28,9 @@ export default function Sidebar() {
     { path: "/hotels", label: "Hotels", icon: Hotel },
     { path: "/reviews", label: "Reviews", icon: Star },
     { path: "/requests", label: "Requests", icon: FileText },
+    { path: "/tour-category", label: "Tour Category", icon: Tag },
+    { path: "/hotel-category", label: "Hotel Category", icon: Tag },
+    { path: "/tour-tariff", label: "Tour Tariff", icon: Ticket },
   ];
 
   const isActive = (path: string) => location.pathname === path;

@@ -18,6 +18,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import ReviewsPage from "./pages/Reviews";
 import RequestsPage from "./pages/Requests";
+import TourCategoriesPage from "./pages/TourCategories";
+import HotelCategoriesPage from "./pages/HotelCategories";
+import TourTariffsPage from "./pages/TourTariff";
 
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token } = useAuthStore();
@@ -70,6 +73,9 @@ export default function AppRouter() {
             <Route path="hotels" element={<HotelsPage />} />
             <Route path="reviews" element={<ReviewsPage />} />
             <Route path="requests" element={<RequestsPage />} />
+            <Route path="tour-category" element={<TourCategoriesPage />} />
+            <Route path="hotel-category" element={<HotelCategoriesPage />} />
+            <Route path="tour-tariff" element={<TourTariffsPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />
