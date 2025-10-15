@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "../electron-build",
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "sourceMap": true,
+    "esModuleInterop": true, // ⬅️ allow default import of CJS
+    "allowSyntheticDefaultImports": true // ⬅️ helps with type-only defaults
+  },
+  "include": ["./**/*.ts"]
+}

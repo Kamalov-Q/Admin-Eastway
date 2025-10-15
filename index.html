@@ -1,12 +1,24 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Admin Dashboard</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- CSP kept as META (no header injection). Add every origin you fetch from. -->
+  <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        connect-src 'self' http://157.245.218.94 ws: wss:;
+        img-src 'self' data: https:;
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+      " />
+  <title>Admin Dashboard</title>
+  <!-- Vite will rewrite these on build; with base='./' they become ./assets/... -->
+  <script type="module" src="/src/main.tsx"></script>
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
 </html>

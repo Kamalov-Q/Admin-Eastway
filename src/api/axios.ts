@@ -2,7 +2,7 @@ import axios from "axios";
 import { useAuthStore } from "@/store/auth-store";
 
 const axiosInstance = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL,
+    baseURL: `${import.meta.env.VITE_API_BASE_URL}/api`,
     withCredentials: true,
     headers: {
         "Content-Type": "application/json",
