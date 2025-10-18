@@ -6,20 +6,59 @@
   "type": "module",
   "scripts": {
     "dev:ui": "vite",
-    "dev:ts": "tsc -p electron/tsconfig.json -w",
-    "dev:wait": "wait-on http://localhost:5173",
     "dev:electron": "cross-env NODE_ENV=development electron .",
-    "dev": "concurrently -k -n UI,TS,ELECTRON -c blue,green,magenta \"npm run dev:ui\" \"npm run dev:ts\" \"npm run dev:wait && npm run dev:electron\"",
+    "dev:wait": "wait-on http://localhost:5173",
+    "dev": "concurrently -k -n UI,ELECTRON -c blue,magenta \"npm:dev:ui\" \"npm:dev:wait && npm:dev:electron\"",
     "build:ui": "vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:ui && npm run build:electron",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",
+    "dist:mac": "npm run build && electron-builder --mac",
     "dist:linux": "npm run build && electron-builder --linux",
     "lint": "eslint .",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.gmail.kamolovquvomiddin9.admin-dashboard",
+    "productName": "Admin Dashboard",
+    "asar": true,
+    "files": [
+      "package.json",
+      "dist/**/*",
+      "electron-build/**/*",
+      "!node_modules/.cache/**"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "extraMetadata": {
+      "main": "electron-build/main/app.js"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.icns"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Utility",
+      "icon": "build"
+    }
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -1,9 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import * as fs from "node:fs";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -11,7 +8,6 @@ const ALLOWED_EXTERNAL = new Set<string>([
     "https://admin-dashboard-eastway.vercel.app",
 ]);
 
-/** Only allow expected in-app navigations */
 function isAllowedInAppURL(url: string) {
     if (url.startsWith("file://")) return true;
     if (isDev && url.startsWith("http://localhost:5173")) return true;
@@ -31,26 +27,21 @@ function createWindow() {
             contextIsolation: true,
             sandbox: true,
             nodeIntegration: false,
-            devTools: isDev
-        }
+            devTools: isDev,
+        },
     });
 
-    // Debug hooks (remove after things are stable)
+    win.on("ready-to-show", () => win.show());
+
     win.webContents.on("did-fail-load", (_e, code, desc, url) => {
         console.error("[did-fail-load]", code, desc, "url:", url);
     });
-    win.webContents.on("console-message", (_e, level, message, line, sourceId) => {
-        console.log("[console]", level, message, sourceId + ":" + line);
-    });
-    // if (!isDev) win.webContents.openDevTools({ mode: "detach" });
-
-    win.on("ready-to-show", () => win.show());
 
     if (isDev) {
         win.loadURL("http://localhost:5173");
     } else {
-        // IMPORTANT: packaged path relative to electron-build/main/app.js
-        const indexHtml = path.resolve(__dirname, "../../dist/index.html");
+        const indexHtml = path.join(process.resourcesPath, "dist", "index.html");
+        console.log("[loadFile]", indexHtml, fs.existsSync(indexHtml) ? "(exists)" : "(MISSING)");
         win.loadFile(indexHtml);
     }
 
@@ -62,19 +53,13 @@ function hardenNavigation() {
         contents.on("will-navigate", (evt, url) => {
             if (!isAllowedInAppURL(url)) evt.preventDefault();
         });
-
         contents.setWindowOpenHandler(({ url }) => {
-            const allowed = [...ALLOWED_EXTERNAL].some((origin) => url.startsWith(origin));
+            const allowed = [...ALLOWED_EXTERNAL].some((o) => url.startsWith(o));
             if (allowed) shell.openExternal(url);
             return { action: "deny" };
         });
-
-        // Disallow <webview>
         contents.on("will-attach-webview", (e) => e.preventDefault());
     });
-
-    // DO NOT inject a CSP response header for file:// pages.
-    // Keep CSP in index.html via <meta http-equiv="Content-Security-Policy"> instead.
 }
 
 app.whenReady().then(() => {
@@ -83,10 +68,7 @@ app.whenReady().then(() => {
 
     hardenNavigation();
 
-    if (!app.requestSingleInstanceLock()) {
-        app.quit();
-        return;
-    }
+    if (!app.requestSingleInstanceLock()) { app.quit(); return; }
     app.on("second-instance", () => {
         const [w] = BrowserWindow.getAllWindows();
         if (w) { if (w.isMinimized()) w.restore(); w.focus(); }
@@ -95,10 +77,5 @@ app.whenReady().then(() => {
     createWindow();
 });
 
-app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
-});
-
-app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
+app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
+app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
