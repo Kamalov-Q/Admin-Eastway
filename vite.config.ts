@@ -8,7 +8,6 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "src") }
   },
-  // Use web-friendly base; the old "./" was only for Electron file://
   base: "/",
   build: { emptyOutDir: true, sourcemap: true },
   server: { port: 5173, open: true }
