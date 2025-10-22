@@ -243,7 +243,9 @@ export function HotelFormModal({
     if (isView) return;
     const file = e.target.files?.[0];
     if (file) {
-      setThumbnailPreview(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onload = () => setThumbnailPreview(reader.result as string);
+      reader.readAsDataURL(file);
       setValue("thumbnailFile", e.target.files as any);
     }
   };
@@ -251,10 +253,21 @@ export function HotelFormModal({
   const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
     const files = e.target.files ? Array.from(e.target.files) : [];
-    if (files.length === 0) return;
+    if (!files.length) return;
+
     setNewImageFiles((prev) => [...prev, ...files]);
-    const newPreviews = files.map((f) => URL.createObjectURL(f));
-    setNewImagePreviews((prev) => [...prev, ...newPreviews]);
+
+    Promise.all(
+      files.map(
+        (f) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(f);
+          })
+      )
+    ).then((urls) => setNewImagePreviews((prev) => [...prev, ...urls]));
   };
 
   const removeExistingImage = (url: string) => {
