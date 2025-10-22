@@ -11,7 +11,7 @@ import {
   useUpdateCity,
   type City,
 } from "@/api/cities";
-import { CitiesTable } from "@/tables/cities-table";
+import { CitiesTable } from "@/components/tables/cities-table";
 import { CityFormModal } from "@/components/forms/city-form";
 import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";

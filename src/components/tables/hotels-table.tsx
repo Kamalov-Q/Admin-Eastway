@@ -276,7 +276,7 @@ export function HotelsTable({
                     </div>
                   </TableCell>
 
-                  <TableCell>{hotel.categoryId ?? "-"}</TableCell>
+                  <TableCell>{hotel?.category?.name_en ?? "-"}</TableCell>
 
                   <TableCell className="text-right">
                     <DropdownMenu>

@@ -39,7 +39,6 @@ const emptyLangObject = () =>
   );
 
 const schema = z.object({
-  // Required names
   ...LANGS.reduce(
     (acc, lang) => ({
       ...acc,
@@ -50,7 +49,6 @@ const schema = z.object({
     {} as Record<`name_${Lang}`, z.ZodString>
   ),
 
-  // Optional desc + address
   ...LANGS.reduce(
     (acc, lang) => ({
       ...acc,

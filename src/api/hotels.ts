@@ -51,6 +51,10 @@ export type Hotel = {
 
     cityId: number;
     categoryId: number;
+    category: {
+        id: number,
+        name_en: string
+    }
 };
 
 export type HotelsQuery = {

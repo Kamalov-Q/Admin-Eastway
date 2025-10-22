@@ -15,7 +15,7 @@ import { useTourCategories, type Category } from "@/api/tour-category";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ToursTable } from "@/tables/tours-table";
+import { ToursTable } from "@/components/tables/tours-table";
 import { TourFormModal } from "@/components/forms/tour-form";
 import { Loader2 } from "lucide-react";
 import {

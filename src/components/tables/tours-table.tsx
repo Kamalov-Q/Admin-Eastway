@@ -27,6 +27,7 @@ import {
 import type { Tour } from "@/api/tours";
 import { useCities } from "@/api/cities";
 import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { useTourCategories } from "@/api/tour-category";
 
 type Props = {
   data: Tour[];
@@ -42,9 +43,25 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
     for (const c of cities) m.set(c.id, { name_en: c.name_en });
     return m;
   }, [cities]);
-
   const cityName = (id?: number) =>
     typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
+
+  const { data: categories = [] } = useTourCategories?.() ?? {
+    data: [] as any[],
+  };
+  const categoryMap = useMemo(() => {
+    const m = new Map<number, { name_en?: string }>();
+    for (const c of categories as Array<{ id: number; name_en?: string }>) {
+      m.set(c.id, { name_en: c.name_en });
+    }
+    return m;
+  }, [categories]);
+  const categoryName = (id?: number, fallbackObj?: any) => {
+    if (fallbackObj?.name_en) return fallbackObj.name_en;
+    return typeof id === "number"
+      ? categoryMap.get(id)?.name_en ?? String(id)
+      : "-";
+  };
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Tour | null>(null);
@@ -86,7 +103,6 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
           alt="img-0"
           className="w-10 h-8 object-cover rounded"
         />
-
         {rest > 0 && (
           <span
             className="pointer-events-none absolute -bottom-1 -right-1 rounded-full bg-black/70 text-white text-[10px] leading-none px-1.5 py-1 shadow-md"
@@ -109,11 +125,11 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
               <TableHead className="w-[200px]">Name (EN)</TableHead>
               <TableHead className="w-[200px]">Name (RU)</TableHead>
               <TableHead className="w-[120px]">Type</TableHead>
+              <TableHead className="w-[200px]">Category</TableHead>
               <TableHead className="w-[80px]">Days</TableHead>
               <TableHead className="w-[180px]">Images</TableHead>
               <TableHead className="w-[120px]">Thumbnail</TableHead>
               <TableHead className="w-[200px]">City (EN)</TableHead>
-              {/* ✅ NEW COLUMN */}
               <TableHead className="w-[250px]">Address (EN)</TableHead>
               <TableHead className="text-right w-[120px]">Actions</TableHead>
             </TableRow>
@@ -140,6 +156,25 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                   </div>
                 </TableCell>
                 <TableCell className="capitalize">{tour.type || "-"}</TableCell>
+
+                {/* ✅ NEW: Category cell (works with categoryId or category object) */}
+                <TableCell>
+                  <div
+                    className="truncate max-w-[200px]"
+                    title={
+                      categoryName(
+                        (tour as any).categoryId,
+                        (tour as any).category
+                      ) || ""
+                    }
+                  >
+                    {categoryName(
+                      (tour as any).categoryId,
+                      (tour as any).category
+                    )}
+                  </div>
+                </TableCell>
+
                 <TableCell>{tour.days ?? "-"}</TableCell>
                 <TableCell>
                   <ImagesCell images={tour.images} />
@@ -157,16 +192,15 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                 </TableCell>
                 <TableCell>
                   <div
-                    className="truncate max-w-[200px]"
+                    className="truncate max-w-[150px]"
                     title={cityName(tour.cityId)}
                   >
                     {cityName(tour.cityId)}
                   </div>
                 </TableCell>
-                {/* ✅ SHOW ADDRESS_EN */}
                 <TableCell>
                   <div
-                    className="truncate max-w-[250px]"
+                    className="truncate max-w-[150px]"
                     title={tour.address_en || ""}
                   >
                     {tour.address_en || "-"}

@@ -10,7 +10,7 @@ import {
 } from "@/api/countries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CountriesTable } from "@/tables/country-table";
+import { CountriesTable } from "@/components/tables/country-table";
 import { CountryFormModal } from "@/components/forms/country-form";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";

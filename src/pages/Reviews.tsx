@@ -20,7 +20,7 @@ import {
 } from "@/api/reviews";
 import { useTours, type Tour } from "@/api/tours";
 import { useHotels, type Hotel } from "@/api/hotels";
-import { ReviewsTable } from "@/tables/reviews-table";
+import { ReviewsTable } from "@/components/tables/reviews-table";
 import { ReviewViewForm } from "@/components/forms/review-view-form";
 import { ReviewFormModal } from "@/components/forms/review-form";
 

@@ -14,7 +14,7 @@ import { useCities, type City } from "@/api/cities";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { HotelsTable } from "@/tables/hotels-table";
+import { HotelsTable } from "@/components/tables/hotels-table";
 import { HotelFormModal } from "@/components/forms/hotel-form";
 import { Loader2 } from "lucide-react";
 import {

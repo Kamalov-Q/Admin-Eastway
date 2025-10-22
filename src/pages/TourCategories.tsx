@@ -13,7 +13,7 @@ import {
   type Category,
 } from "@/api/tour-category";
 import { TourCategoryFormModal } from "@/components/forms/tour-category-form";
-import { TourCategoryTable } from "@/tables/tour-category-table";
+import { TourCategoryTable } from "@/components/tables/tour-category-table";
 
 export default function TourCategoriesPage() {
   // Fetch ALL (no pagination/filters)

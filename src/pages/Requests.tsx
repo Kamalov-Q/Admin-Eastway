@@ -32,7 +32,7 @@ import {
 } from "@/api/requests";
 import { useTours, type Tour } from "@/api/tours";
 import { useHotels, type Hotel } from "@/api/hotels";
-import { RequestsTable } from "@/tables/requests-table";
+import { RequestsTable } from "@/components/tables/requests-table";
 import { RequestFormModal } from "@/components/forms/request-form";
 import { RequestViewModal } from "@/components/forms/request-view-form";
 

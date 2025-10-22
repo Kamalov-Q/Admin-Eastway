@@ -13,7 +13,7 @@ import {
   type Category,
 } from "@/api/hotel-category";
 import { HotelCategoryFormModal } from "@/components/forms/hotel-category-form";
-import { HotelCategoryTable } from "@/tables/hotel-category-table";
+import { HotelCategoryTable } from "@/components/tables/hotel-category-table";
 
 export default function HotelCategoriesPage() {
   // Fetch ALL (no pagination/filters)

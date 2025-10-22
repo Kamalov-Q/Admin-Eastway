@@ -12,7 +12,7 @@ import {
   useDeleteTourTariff,
   type TourTariff,
 } from "@/api/tour-tariff";
-import { TourTariffTable } from "@/tables/tour-tariff-table";
+import { TourTariffTable } from "@/components/tables/tour-tariff-table";
 import TourTariffForm from "@/components/forms/tour-tariff-form";
 
 export default function TourTariffsPage() {
