@@ -11,6 +11,7 @@ import {
 } from "@/api/hotels";
 import { useCountries, type Country } from "@/api/countries";
 import { useCities, type City } from "@/api/cities";
+import { useHotelCategories } from "@/api/hotel-category";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,11 +38,24 @@ function useDebounced<T>(value: T, delay = 400) {
   return v;
 }
 
+/** Pick a localized display name (and also what we send in queries) */
+function localized<T extends Record<string, any>>(
+  obj: T | null | undefined,
+  keys: string[]
+): string | undefined {
+  if (!obj) return undefined;
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
 export default function HotelsPage() {
-  const [country, setCountry] = React.useState<string>("");
-  const [city, setCity] = React.useState<string>("");
-  const [name, setName] = React.useState<string>("");
-  const [category, setCategory] = React.useState<string>("");
+  const [country, setCountry] = React.useState<string>(""); // sends country?.name_xx
+  const [city, setCity] = React.useState<string>(""); // sends city?.name_xx
+  const [name, setName] = React.useState<string>(""); // free text
+  const [category, setCategory] = React.useState<string>(""); // sends category?.name_xx
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
 
@@ -50,24 +64,40 @@ export default function HotelsPage() {
   const dName = useDebounced(name);
   const dCategory = useDebounced(category);
 
+  // -------- Countries ----------
   const countriesQuery = useCountries();
   const countriesRaw = countriesQuery.data as any;
   const countries: Country[] = Array.isArray(countriesRaw)
     ? countriesRaw
     : countriesRaw?.data ?? [];
 
+  // -------- Cities (filtered by selected country) ----------
   const citiesQuery = useCities({
     country: dCountry || undefined,
     limit: 1000,
   });
   const cities: City[] = citiesQuery.data ?? [];
 
+  // -------- Categories ----------
+  const {
+    data: categoriesRaw,
+    isLoading: categoryLoading,
+    isError: categoryError,
+  } = useHotelCategories();
+  const categories: any[] = React.useMemo(() => {
+    if (!categoriesRaw) return [];
+    return Array.isArray(categoriesRaw)
+      ? categoriesRaw
+      : (categoriesRaw as any).data ?? [];
+  }, [categoriesRaw]);
+
+  // Build hotels query params
   const params = React.useMemo<HotelsQuery>(
     () => ({
       country: dCountry || undefined,
       city: dCity || undefined,
       name: dName || undefined,
-      category: dCategory || undefined,
+      category: dCategory || undefined, // <- send name_xx of category
       page,
       limit,
     }),
@@ -150,10 +180,12 @@ export default function HotelsPage() {
   const canNext = totalPages ? currentPage < totalPages : true;
 
   const countryLabel = (c: Country) =>
-    (c as any).name_en ||
-    (c as any).name_ru ||
-    (c as any).name_es ||
-    String(c.id);
+    localized(c, ["name_en", "name_ru", "name_es"]) ?? String((c as any).id);
+  const cityLabel = (ct: City) =>
+    localized(ct, ["name_en", "name_ru", "name_es"]) ?? String((ct as any).id);
+  const categoryLabel = (cat: any) =>
+    localized(cat, ["name_en", "name_ru", "name_es"]) ??
+    String((cat as any).id);
 
   return (
     <div className="p-6">
@@ -164,7 +196,7 @@ export default function HotelsPage() {
 
       {/* Toolbar */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
-        {/* Country */}
+        {/* Country (sends name_xx) */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Country</label>
           <Select
@@ -184,19 +216,27 @@ export default function HotelsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All countries</SelectItem>
-              {countries.map((c) => {
-                const label = countryLabel(c);
-                return (
-                  <SelectItem key={c.id} value={label}>
-                    {label}
-                  </SelectItem>
-                );
-              })}
+              {countries
+                .slice()
+                .sort((a, b) =>
+                  countryLabel(a).localeCompare(countryLabel(b), undefined, {
+                    sensitivity: "base",
+                  })
+                )
+                .map((c) => {
+                  const label = countryLabel(c);
+                  // value is the string we send to the API
+                  return (
+                    <SelectItem key={c.id} value={label}>
+                      {label}
+                    </SelectItem>
+                  );
+                })}
             </SelectContent>
           </Select>
         </div>
 
-        {/* City */}
+        {/* City (sends name_xx) */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">City</label>
           <Select
@@ -213,16 +253,26 @@ export default function HotelsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All cities</SelectItem>
-              {(cities ?? []).map((ct) => (
-                <SelectItem key={ct.id} value={ct.name_en}>
-                  {ct.name_en}
-                </SelectItem>
-              ))}
+              {cities
+                .slice()
+                .sort((a, b) =>
+                  cityLabel(a).localeCompare(cityLabel(b), undefined, {
+                    sensitivity: "base",
+                  })
+                )
+                .map((ct) => {
+                  const label = cityLabel(ct);
+                  return (
+                    <SelectItem key={ct.id} value={label}>
+                      {label}
+                    </SelectItem>
+                  );
+                })}
             </SelectContent>
           </Select>
         </div>
 
-        {/* Name */}
+        {/* Name (free text) */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Name</label>
           <Input
@@ -232,14 +282,48 @@ export default function HotelsPage() {
           />
         </div>
 
-        {/* Category */}
+        {/* Category (Select) — sends category?.name_xx */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Category</label>
-          <Input
-            placeholder="Filter by category"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          />
+          <Select
+            value={category || undefined}
+            onValueChange={(v) => setCategory(v === ALL ? "" : v)}
+            disabled={categoryLoading || categoryError}
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  categoryLoading ? "Loading categories…" : "All categories"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All categories</SelectItem>
+
+              {!categoryLoading &&
+                !categoryError &&
+                categories
+                  .slice()
+                  .sort((a, b) =>
+                    categoryLabel(a).localeCompare(
+                      categoryLabel(b),
+                      undefined,
+                      {
+                        sensitivity: "base",
+                      }
+                    )
+                  )
+                  .map((cat) => {
+                    const label = categoryLabel(cat);
+                    // IMPORTANT: value is the localized name we send in `category` query
+                    return (
+                      <SelectItem key={(cat as any).id ?? label} value={label}>
+                        {label}
+                      </SelectItem>
+                    );
+                  })}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Rows */}

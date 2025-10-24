@@ -1,8 +1,6 @@
-"use client";
-
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Check } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   Select,
@@ -11,18 +9,6 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandInput,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-} from "@/components/ui/command";
 
 import {
   useRequests,
@@ -30,13 +16,9 @@ import {
   type Request,
   type RequestsQuery,
 } from "@/api/requests";
-import { useTours, type Tour } from "@/api/tours";
-import { useHotels, type Hotel } from "@/api/hotels";
 import { RequestsTable } from "@/components/tables/requests-table";
 import { RequestFormModal } from "@/components/forms/request-form";
 import { RequestViewModal } from "@/components/forms/request-view-form";
-
-const ALL = "__ALL__";
 
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = React.useState(value);
@@ -45,130 +27,6 @@ function useDebounced<T>(value: T, delay = 400) {
     return () => clearTimeout(id);
   }, [value, delay]);
   return v;
-}
-
-/** Searchable target picker */
-function TargetPicker({
-  type,
-  value,
-  onChange,
-  tours,
-  hotels,
-  disabled,
-  loading,
-}: {
-  type: "tour" | "hotel" | "all";
-  value: string;
-  onChange: (v: string) => void;
-  tours: Tour[];
-  hotels: Hotel[];
-  disabled?: boolean;
-  loading?: boolean;
-}) {
-  const [open, setOpen] = React.useState(false);
-
-  const currentLabel =
-    type === "tour"
-      ? tours.find((t) => String(t.id) === value)?.title_en ?? ""
-      : type === "hotel"
-      ? hotels.find((h) => String(h.id) === value)?.name_en ?? ""
-      : "";
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={`w-full justify-between border rounded-md px-3 py-2 text-left text-sm ${
-            disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-          }`}
-          disabled={disabled}
-        >
-          {type === "all" ? (
-            <span className="text-gray-500">All</span>
-          ) : loading ? (
-            <span className="text-gray-500">Loading…</span>
-          ) : value ? (
-            <span className="truncate">{currentLabel || `#${value}`}</span>
-          ) : (
-            <span className="text-gray-500">
-              {type === "tour" ? "All tours" : "All hotels"}
-            </span>
-          )}
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-0">
-        <Command>
-          <CommandInput
-            placeholder={type === "tour" ? "Search tours…" : "Search hotels…"}
-          />
-          <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup>
-            <CommandItem
-              value={ALL}
-              onSelect={() => {
-                onChange("");
-                setOpen(false);
-              }}
-            >
-              <Check
-                className={`mr-2 h-4 w-4 ${
-                  value ? "opacity-0" : "opacity-100"
-                }`}
-              />
-              All
-            </CommandItem>
-
-            {type === "tour" &&
-              tours.map((t) => {
-                const v = String(t.id);
-                const selected = value === v;
-                return (
-                  <CommandItem
-                    key={t.id}
-                    value={v}
-                    onSelect={() => {
-                      onChange(selected ? "" : v);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={`mr-2 h-4 w-4 ${
-                        selected ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                    {t.title_en || `#${t.id}`}
-                  </CommandItem>
-                );
-              })}
-
-            {type === "hotel" &&
-              hotels.map((h) => {
-                const v = String(h.id);
-                const selected = value === v;
-                return (
-                  <CommandItem
-                    key={h.id}
-                    value={v}
-                    onSelect={() => {
-                      onChange(selected ? "" : v);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={`mr-2 h-4 w-4 ${
-                        selected ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
-                    {h.name_en || `#${h.id}`}
-                  </CommandItem>
-                );
-              })}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
 }
 
 export default function RequestsPage() {
@@ -185,14 +43,6 @@ export default function RequestsPage() {
 
   const dTargetId = useDebounced(targetId);
 
-  // Load target lists
-  const toursQuery = useTours({ limit: 1000 });
-  const hotelsQuery = useHotels({ limit: 1000 });
-
-  const tours: Tour[] = toursQuery.data?.data ?? [];
-  const hotels: Hotel[] = hotelsQuery.data?.data ?? [];
-
-  // Reset target when switching type
   React.useEffect(() => {
     setTargetId("");
     setPage(1);
@@ -226,7 +76,6 @@ export default function RequestsPage() {
 
   React.useEffect(() => setPage(1), [type, status, dTargetId]);
 
-  // one-time fetch error toast
   const errorOnce = React.useRef(false);
   React.useEffect(() => {
     if (isError && !errorOnce.current) {
@@ -347,33 +196,10 @@ export default function RequestsPage() {
           </Select>
         </div>
 
-        {/* Target */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-gray-600">
-            {type === "tour" ? "Tour" : type === "hotel" ? "Hotel" : "Target"}
-          </label>
-          <TargetPicker
-            type={type}
-            value={targetId}
-            onChange={(v) => setTargetId(v === ALL ? "" : v)}
-            tours={tours}
-            hotels={hotels}
-            disabled={type === "all"}
-            loading={
-              type === "tour"
-                ? toursQuery.isLoading
-                : type === "hotel"
-                ? hotelsQuery.isLoading
-                : false
-            }
-          />
-        </div>
-
-        {/* Rows */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-gray-600">Rows</label>
+        <div className="flex items-center gap-2 md:col-start-6 md:justify-self-end self-end">
+          <label className="text-sm text-gray-600">Rows per page:</label>
           <select
-            className="border rounded-md py-2 px-2 text-sm"
+            className="border rounded-md py-1.5 px-2 text-sm"
             value={limit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
@@ -386,14 +212,6 @@ export default function RequestsPage() {
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Pagination display */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of{" "}
-            <span className="font-medium">{totalPages}</span>
-          </div>
         </div>
       </div>
 

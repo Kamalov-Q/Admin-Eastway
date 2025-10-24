@@ -18,13 +18,9 @@ import {
   type Review,
   type ReviewsQuery,
 } from "@/api/reviews";
-import { useTours, type Tour } from "@/api/tours";
-import { useHotels, type Hotel } from "@/api/hotels";
 import { ReviewsTable } from "@/components/tables/reviews-table";
 import { ReviewViewForm } from "@/components/forms/review-view-form";
 import { ReviewFormModal } from "@/components/forms/review-form";
-
-const ALL = "__ALL__";
 
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = React.useState(value);
@@ -49,21 +45,11 @@ export default function ReviewsPage() {
 
   const dTargetId = useDebounced(targetId);
 
-  // Load target options based on type
-  const toursQuery = useTours({ limit: 1000 });
-  const hotelsQuery = useHotels({ limit: 1000 });
-
-  // 🔧 both hooks return Paginated<T>; read `.data`
-  const tours: Tour[] = toursQuery.data?.data ?? [];
-  const hotels: Hotel[] = hotelsQuery.data?.data ?? [];
-
-  // Reset target when switching type
   React.useEffect(() => {
     setTargetId("");
     setPage(1);
   }, [type]);
 
-  // Build params safely (finite ids only)
   const params = React.useMemo<ReviewsQuery>(() => {
     const raw = dTargetId.trim();
     const maybeNum = raw ? Number(raw) : undefined;
@@ -91,7 +77,6 @@ export default function ReviewsPage() {
 
   React.useEffect(() => setPage(1), [type, status, dTargetId]);
 
-  // one-time fetch error toast
   const errorOnce = React.useRef(false);
   React.useEffect(() => {
     if (isError && !errorOnce.current) {
@@ -190,14 +175,9 @@ export default function ReviewsPage() {
       {/* Toolbar */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
         {/* Type */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 md:col-span-2">
           <label className="text-sm text-gray-600">Type</label>
-          <Select
-            value={type}
-            onValueChange={(v: any) => {
-              setType(v);
-            }}
-          >
+          <Select value={type} onValueChange={(v: any) => setType(v)}>
             <SelectTrigger>
               <SelectValue placeholder="All" />
             </SelectTrigger>
@@ -210,7 +190,7 @@ export default function ReviewsPage() {
         </div>
 
         {/* Status */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 md:col-span-2">
           <label className="text-sm text-gray-600">Status</label>
           <Select value={status} onValueChange={(v: any) => setStatus(v)}>
             <SelectTrigger>
@@ -225,59 +205,11 @@ export default function ReviewsPage() {
           </Select>
         </div>
 
-        {/* Target (dynamic) */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-gray-600">
-            {type === "tour" ? "Tour" : type === "hotel" ? "Hotel" : "Target"}
-          </label>
-          <Select
-            value={targetId || undefined}
-            onValueChange={(v) => setTargetId(v === ALL ? "" : v)}
-            disabled={
-              type === "all" ||
-              (type === "tour" ? toursQuery.isLoading : hotelsQuery.isLoading)
-            }
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={
-                  type === "all"
-                    ? "All"
-                    : type === "tour"
-                    ? toursQuery.isLoading
-                      ? "Loading..."
-                      : "All tours"
-                    : hotelsQuery.isLoading
-                    ? "Loading..."
-                    : "All hotels"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All</SelectItem>
-
-              {type === "tour" &&
-                tours.map((t) => (
-                  <SelectItem key={t.id} value={String(t.id)}>
-                    {t.title_en || `#${t.id}`}
-                  </SelectItem>
-                ))}
-
-              {type === "hotel" &&
-                hotels.map((h) => (
-                  <SelectItem key={h.id} value={String(h.id)}>
-                    {h.name_en || `#${h.id}`}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Rows */}
-        <div className="flex flex-col gap-1">
-          <label className="text-sm text-gray-600">Rows</label>
+        {/* Rows (stick to the end/right on md+) */}
+        <div className="flex items-center gap-2 md:col-start-6 md:justify-self-end self-end">
+          <label className="text-sm text-gray-600">Rows per page:</label>
           <select
-            className="border rounded-md py-2 px-2 text-sm"
+            className="border rounded-md py-1.5 px-2 text-sm"
             value={limit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
@@ -290,14 +222,6 @@ export default function ReviewsPage() {
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Pagination display */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of{" "}
-            <span className="font-medium">{totalPages}</span>
-          </div>
         </div>
       </div>
 

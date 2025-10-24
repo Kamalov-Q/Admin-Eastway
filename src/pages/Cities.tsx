@@ -1,7 +1,4 @@
-// app/(your-route)/cities/page.tsx
-"use client";
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,7 +13,17 @@ import { CityFormModal } from "@/components/forms/city-form";
 import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCountries, type Country } from "@/api/countries";
 
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
+
+/** Debounce helper */
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -25,6 +32,10 @@ function useDebounced<T>(value: T, delay = 400) {
   }, [value, delay]);
   return v;
 }
+
+const ALL_COUNTRIES = "__ALL__";
+
+const PREFERRED_NAME_KEY = "name_en" as keyof Country | "name_en";
 
 export default function CitiesPage() {
   const [page, setPage] = useState(1);
@@ -37,6 +48,13 @@ export default function CitiesPage() {
     "create"
   );
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  const [countryFilter, setCountryFilter] = useState("");
+
+  const {
+    data: countries,
+    isLoading: countryLoading,
+    isError: countryError,
+  } = useCountries();
 
   const {
     data: cities,
@@ -45,6 +63,7 @@ export default function CitiesPage() {
     isError,
     error,
   } = useCities({
+    country: countryFilter ?? "",
     page,
     limit,
     name: debouncedSearch,
@@ -54,16 +73,21 @@ export default function CitiesPage() {
   const updateCity = useUpdateCity();
   const deleteCity = useDeleteCity();
 
-  useEffect(() => setPage(1), [debouncedSearch]);
+  /** Reset to first page when search or country changes */
+  useEffect(() => setPage(1), [debouncedSearch, countryFilter]);
 
-  // One-time toast for query errors
+  /** One-time toast for errors */
   const errorNotifiedRef = useRef(false);
   useEffect(() => {
-    if (isError && !errorNotifiedRef.current) {
+    if (errorNotifiedRef.current) return;
+    if (isError) {
       toast.error((error as any)?.message ?? "Failed to load cities.");
       errorNotifiedRef.current = true;
+    } else if (countryError) {
+      toast.error("Failed to load countries.");
+      errorNotifiedRef.current = true;
     }
-  }, [isError, error]);
+  }, [isError, error, countryError]);
 
   const openCreate = () => {
     setSelectedCity(null);
@@ -87,18 +111,13 @@ export default function CitiesPage() {
     city?: City | null
   ) => {
     if (mode === "edit" && city?.id) {
-      await toast.promise(
-        updateCity.mutateAsync(
-          { id: city.id, payload } // your hook sanitizes fields
-        ),
-        {
-          loading: "Updating city…",
-          success: `City updated${
-            payload?.name_en ? ` (${payload.name_en})` : ""
-          }`,
-          error: (e) => (e as any)?.message || "Failed to update city",
-        }
-      );
+      await toast.promise(updateCity.mutateAsync({ id: city.id, payload }), {
+        loading: "Updating city…",
+        success: `City updated${
+          payload?.name_en ? ` (${payload.name_en})` : ""
+        }`,
+        error: (e) => (e as any)?.message || "Failed to update city",
+      });
     } else {
       await toast.promise(createCity.mutateAsync(payload), {
         loading: "Creating city…",
@@ -119,6 +138,73 @@ export default function CitiesPage() {
       error: (e) => (e as any)?.message || "Failed to delete city",
     });
   };
+
+  // ------------------ Country helpers ------------------
+
+  /** Normalize countries into a plain array (supports both Country[] and { data: Country[] }) */
+  const countriesArray: Country[] = useMemo(() => {
+    if (!countries) return [];
+    return Array.isArray(countries) ? countries : (countries as any).data ?? [];
+  }, [countries]);
+
+  /** Choose the localized name string to send to the API (country?.name_xx) */
+  const countryNameForQuery = (c: Country) => {
+    const keys: (keyof Country | string)[] = [
+      PREFERRED_NAME_KEY, // primary choice, e.g., name_en
+      "name_ru",
+      "name_es",
+      "name_gr",
+      "name_jp",
+      "name_zh",
+    ];
+    for (const k of keys) {
+      const v = (c as any)[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return null;
+  };
+
+  /** Friendly label to display in the Select list */
+  const countryLabel = (c: Country, fallback: string) =>
+    c.name_en ??
+    c.name_ru ??
+    c.name_es ??
+    c.name_gr ??
+    c.name_jp ??
+    c.name_zh ??
+    fallback;
+
+  const sortedCountries = useMemo(() => {
+    const seen = new Set<string>();
+    const items = countriesArray
+      .map((c) => {
+        const value = countryNameForQuery(c);
+        if (!value) return null;
+
+        const idish =
+          (c as any).id ?? (c as any).code ?? (c as any).iso2 ?? value;
+        const key = `${String(idish)}__${value}`;
+
+        const label = countryLabel(c, value);
+        return { key, value, label };
+      })
+      .filter(Boolean) as { key: string; value: string; label: string }[];
+
+    const deduped: { key: string; value: string; label: string }[] = [];
+    for (const it of items) {
+      if (!seen.has(it.key)) {
+        seen.add(it.key);
+        deduped.push(it);
+      }
+    }
+
+    deduped.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    );
+    return deduped;
+  }, [countriesArray]);
+
+  // ------------------ Loading skeleton ------------------
 
   if (!cities && isLoading) {
     return (
@@ -157,11 +243,15 @@ export default function CitiesPage() {
     );
   }
 
+  // ------------------ Error boundary ------------------
+
   if (isError) {
     return (
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
   }
+
+  // ------------------ UI ------------------
 
   return (
     <div className="p-6 space-y-6">
@@ -178,6 +268,50 @@ export default function CitiesPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
         />
+
+        {countryLoading ? (
+          <Skeleton className="h-9 w-64" />
+        ) : (
+          <Select
+            value={countryFilter === "" ? ALL_COUNTRIES : countryFilter}
+            onValueChange={(v) =>
+              setCountryFilter(v === ALL_COUNTRIES ? "" : v)
+            }
+            disabled={countryLoading || countryError}
+          >
+            <SelectTrigger className="max-w-xs">
+              <SelectValue
+                placeholder={
+                  countryLoading ? "Loading countries…" : "Filter by country…"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_COUNTRIES}>All countries</SelectItem>
+
+              {/* Error / Empty states */}
+              {countryError && (
+                <SelectItem value="__ERROR__" disabled>
+                  Failed to load countries
+                </SelectItem>
+              )}
+              {!countryError &&
+                !countryLoading &&
+                sortedCountries.length === 0 && (
+                  <SelectItem value="__EMPTY__" disabled>
+                    No countries
+                  </SelectItem>
+                )}
+
+              {sortedCountries.map(({ key, value, label }) => (
+                <SelectItem key={key} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+
         <div className="flex items-center gap-2">
           <label className="text-sm text-gray-600">Rows per page:</label>
           <select
@@ -197,7 +331,6 @@ export default function CitiesPage() {
         </div>
       </div>
 
-      {/* Table + subtle overlay while fetching */}
       <div className="relative border rounded-lg p-2 bg-white">
         {isFetching && (cities?.length ?? 0) > 0 && (
           <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg z-10">
