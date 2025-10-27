@@ -38,7 +38,6 @@ function useDebounced<T>(value: T, delay = 400) {
   return v;
 }
 
-/** Pick a localized display name (and also what we send in queries) */
 function localized<T extends Record<string, any>>(
   obj: T | null | undefined,
   keys: string[]
@@ -52,10 +51,10 @@ function localized<T extends Record<string, any>>(
 }
 
 export default function HotelsPage() {
-  const [country, setCountry] = React.useState<string>(""); // sends country?.name_xx
-  const [city, setCity] = React.useState<string>(""); // sends city?.name_xx
-  const [name, setName] = React.useState<string>(""); // free text
-  const [category, setCategory] = React.useState<string>(""); // sends category?.name_xx
+  const [country, setCountry] = React.useState<string>("");
+  const [city, setCity] = React.useState<string>("");
+  const [name, setName] = React.useState<string>("");
+  const [category, setCategory] = React.useState<string>("");
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
 
@@ -315,7 +314,6 @@ export default function HotelsPage() {
                   )
                   .map((cat) => {
                     const label = categoryLabel(cat);
-                    // IMPORTANT: value is the localized name we send in `category` query
                     return (
                       <SelectItem key={(cat as any).id ?? label} value={label}>
                         {label}
