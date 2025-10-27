@@ -16,7 +16,7 @@ interface LoginForm {
 }
 
 export default function LoginPage() {
-  const { login } = useAuthStore();
+  const { login, setUser } = useAuthStore();
   const { register, handleSubmit } = useForm<LoginForm>();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +26,8 @@ export default function LoginPage() {
       axiosInstance.post("/auth/login", data).then((r) => r.data),
     onSuccess: (data) => {
       const token = data.access_token || data.token;
+      const { phoneNumber, role } = data;
+      setUser({ phoneNumber, role });
 
       if (!token) {
         toast.error("No token received from server");
@@ -55,7 +57,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-tr from-indigo-600 via-blue-500 to-purple-500 overflow-hidden">
+    <div className="relative flex min-h-screen items-center justify-center bg-linear-to-tr from-indigo-600 via-blue-500 to-purple-500 overflow-hidden">
       <div className="absolute -top-28 -left-28 w-96 h-96 bg-white/20 rounded-full blur-3xl"></div>
       <div className="absolute -bottom-20 -right-16 w-80 h-80 bg-white/10 rounded-full blur-2xl"></div>
 

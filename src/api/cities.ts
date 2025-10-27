@@ -1,6 +1,5 @@
-// src/api/cities.ts
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import axiosInstance from "./axios"; // keep your existing axios instance import
+import axiosInstance from "./axios";
 import toast from "react-hot-toast";
 
 export type City = {
@@ -23,10 +22,9 @@ interface CityFilters {
     page?: number;
     limit?: number;
     name?: string;
-    country?: string; // optional filter by country name (server can handle it in where.country)
+    country?: string;
 }
 
-/** Keep only the 6 language fields + countryId. Drop everything else. */
 export const sanitizeCityPayload = (p: Partial<City>): Partial<CityPayload> => {
     const base: Partial<CityPayload> = {
         name_en: p.name_en?.trim(),
@@ -40,7 +38,6 @@ export const sanitizeCityPayload = (p: Partial<City>): Partial<CityPayload> => {
     return Object.fromEntries(Object.entries(base).filter(([, v]) => v !== undefined));
 };
 
-/** Normalize any raw city (possibly with relations) to the thin City shape. */
 const normalizeCity = (raw: any): City => ({
     id: raw.id,
     name_en: raw.name_en ?? "",
@@ -54,7 +51,7 @@ const normalizeCity = (raw: any): City => ({
 });
 
 export const useCities = (filters: CityFilters = {}) => {
-    const { page = 1, limit = 10, name, country } = filters;
+    const { page = 0, limit = 10, name, country } = filters;
 
     return useQuery<City[]>({
         queryKey: ["cities", { page, limit, name, country }],
@@ -64,11 +61,9 @@ export const useCities = (filters: CityFilters = {}) => {
             if (country?.trim()) params.country = country.trim();
 
             const { data } = await axiosInstance.get("/city", { params });
-            // Accept array or { data: [] }
             const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
             return rows.map(normalizeCity);
         },
-        // v5: keeps previous data during refetch
         placeholderData: keepPreviousData,
         staleTime: 30_000,
         refetchOnWindowFocus: false,

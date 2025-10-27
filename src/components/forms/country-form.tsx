@@ -49,6 +49,7 @@ export function CountryFormModal({
 
   const { data: cities = [], isLoading: citiesLoading } = useCities({
     country: initialData?.name_en ?? "",
+    limit: 100,
   });
 
   React.useEffect(() => {

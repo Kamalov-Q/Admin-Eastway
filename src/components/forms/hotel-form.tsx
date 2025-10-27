@@ -1,4 +1,3 @@
-"use client";
 
 import * as React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -31,6 +30,7 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command";
+import { useHotelCategories } from "@/api/hotel-category";
 
 const emptyLangObject = () =>
   LANGS.reduce(
@@ -156,7 +156,12 @@ export function HotelFormModal({
     []
   );
 
-  const { data: cities = [], isLoading } = useCities();
+  const { data: cities = [], isLoading: citiesLoading } = useCities({limit: 20});
+  const {
+    data: categories = [],
+    isLoading: categoriesLoading,
+    isError: categoriesError,
+  } = useHotelCategories();
 
   const {
     register,
@@ -356,6 +361,11 @@ export function HotelFormModal({
   const selectedCityId = watch("cityId");
   const selectedCity = cities.find((c) => c.id === selectedCityId);
 
+  const selectedCategoryId = watch("categoryId");
+  const selectedCategory = categories.find(
+    (c: any) => c.id === selectedCategoryId
+  );
+
   const ro = isView ? { readOnly: true, disabled: true } : {};
 
   return (
@@ -428,7 +438,7 @@ export function HotelFormModal({
                               ? ` - ${selectedCity.name_ru}`
                               : ""
                           }`
-                        : isLoading
+                        : citiesLoading
                         ? "Loading..."
                         : "Select a city"}
                     </Button>
@@ -467,14 +477,67 @@ export function HotelFormModal({
               {!isView && <InlineError msg={(errors as any).cityId?.message} />}
             </div>
 
-            {/* Category */}
+            {/* Category (searchable select by categoryId; display category?.name_en) */}
             <div>
-              <Label required>Category ID</Label>
-              <Input
-                type="number"
-                {...register("categoryId", { valueAsNumber: true })}
-                {...ro}
-              />
+              <Label required>Category</Label>
+              {isView ? (
+                <Input
+                  value={
+                    selectedCategory?.name_en ||
+                    (initialData?.categoryId
+                      ? String(initialData.categoryId)
+                      : "")
+                  }
+                  readOnly
+                  disabled
+                />
+              ) : (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      {selectedCategory
+                        ? selectedCategory?.name_en
+                        : categoriesLoading
+                        ? "Loading..."
+                        : categoriesError
+                        ? "Failed to load categories"
+                        : "Select a category"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search category..." />
+                      <CommandEmpty>No category found.</CommandEmpty>
+                      <CommandGroup>
+                        {categories.map((cat: any) => (
+                          <CommandItem
+                            key={cat.id}
+                            value={`${cat.name_en ?? ""}`}
+                            onSelect={() =>
+                              setValue("categoryId", cat.id, {
+                                shouldValidate: true,
+                              })
+                            }
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${
+                                cat.id === selectedCategoryId
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                              }`}
+                            />
+                            {cat?.name_en ?? `#${cat.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
               {!isView && (
                 <InlineError msg={(errors as any).categoryId?.message} />
               )}

@@ -1,6 +1,3 @@
-// src/components/forms/city-form.tsx
-"use client";
-
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -56,7 +53,7 @@ export function CityFormModal({
   onSubmit?: (payload: Partial<City>) => void;
   mode?: "edit" | "view" | "create";
 }) {
-  const countriesQuery = useCountries();
+  const countriesQuery = useCountries({limit: 100});
   const raw = countriesQuery.data as any;
   const countries: Country[] = Array.isArray(raw) ? raw : raw?.data ?? [];
 

@@ -64,7 +64,7 @@ const Avatar = ({ name }: { name: string }) => {
     .join("");
   return (
     <div
-      className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white grid place-items-center text-sm font-semibold shadow-sm"
+      className="h-10 w-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 text-white grid place-items-center text-sm font-semibold shadow-sm"
       aria-hidden
     >
       {initials || "?"}
@@ -181,7 +181,7 @@ export function ReviewViewForm({ open, onOpenChange, review }: Props) {
                 <div className="mb-2 text-sm font-medium text-gray-800">
                   Comment
                 </div>
-                <div className="rounded-lg border bg-white p-3 text-sm leading-relaxed whitespace-pre-wrap break-words max-h-56 overflow-auto">
+                <div className="rounded-lg border bg-white p-3 text-sm leading-relaxed whitespace-pre-wrap warp-break-words max-h-56 overflow-auto">
                   {review.comment || "-"}
                 </div>
               </div>

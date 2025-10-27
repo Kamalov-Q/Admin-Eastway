@@ -42,7 +42,6 @@ const emptyLangObject = () =>
     {} as Record<`name_${Lang}`, string>
   );
 
-// ====== schema (add tariffIds optional) ======
 const schema = z.object({
   days: z.number().min(1, "Days is required"),
   type: z.enum(["private", "group"] as const, {
@@ -121,7 +120,6 @@ const schema = z.object({
       )
     )
     .min(1, "Add at least one not-included item"),
-  // titles, desc, address
   ...LANGS.reduce(
     (acc, lang) => ({
       ...acc,
@@ -133,8 +131,6 @@ const schema = z.object({
     }),
     {} as Record<`title_${Lang}` | `desc_${Lang}` | `address_${Lang}`, any>
   ),
-  // NEW: tariffs attachment (optional)
-  // tariffIds: z.array(z.number()).optional(),
 });
 
 export type TourFormValues = z.infer<typeof schema>;
@@ -167,7 +163,9 @@ export function TourFormModal({
     []
   );
 
-  const { data: cities = [], isLoading: citiesLoading } = useCities();
+  const { data: cities = [], isLoading: citiesLoading } = useCities({
+    limit: 100,
+  });
 
   // categories
   const tourCatsQuery = useTourCategories();
@@ -187,14 +185,12 @@ export function TourFormModal({
         `#${c.id}`
       : "";
 
-  // tariffs to attach
   const tariffsQuery = useTours({ limit: 1000 });
   const tariffs: TourTariff[] = React.useMemo(() => {
     const raw = tariffsQuery.data as any;
     return Array.isArray(raw) ? raw : raw?.data ?? [];
   }, [tariffsQuery.data]);
 
-  // derive initial tariff ids: prefer direct field, fallback to relation array
   const derivedInitialTariffIds = React.useMemo<number[]>(() => {
     const direct: number[] = (initialData as any)?.tariffIds ?? [];
     if (direct?.length) return direct;
@@ -248,6 +244,16 @@ export function TourFormModal({
       // tariffIds: derivedInitialTariffIds,
     },
   });
+
+  const TYPE_OPTIONS = [
+    { value: "private", label: "Private" },
+    { value: "group", label: "Group" },
+  ];
+  const getTypeLabel = (v?: string | null) =>
+    TYPE_OPTIONS.find((o) => o.value === v)?.label ?? "";
+
+  // inside your component (you already have setValue, watch, errors, register, isView, initialData)
+  const selectedType = watch("type");
 
   React.useEffect(() => {
     if (!open) return;
@@ -479,22 +485,70 @@ export function TourFormModal({
 
             <div>
               <Label required>Tour Type</Label>
+
               {isView ? (
-                <Input value={initialData?.type ?? ""} readOnly disabled />
+                <Input
+                  value={
+                    getTypeLabel(selectedType) ||
+                    getTypeLabel(initialData?.type) ||
+                    ""
+                  }
+                  readOnly
+                  disabled
+                />
               ) : (
-                <select
-                  {...register("type")}
-                  className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500"
-                  defaultValue={initialData?.type || ""}
-                >
-                  <option value="" disabled>
-                    Select type
-                  </option>
-                  <option value="private">Private</option>
-                  <option value="group">Group</option>
-                </select>
+                <>
+                  {/* keep RHF field registered */}
+                  <input type="hidden" {...register("type")} />
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        className="w-full justify-between"
+                      >
+                        {selectedType
+                          ? getTypeLabel(selectedType)
+                          : "Select type"}
+                      </Button>
+                    </PopoverTrigger>
+
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder="Search type..." />
+                        <CommandEmpty>No type found.</CommandEmpty>
+                        <CommandGroup>
+                          {TYPE_OPTIONS.map((opt) => (
+                            <CommandItem
+                              key={opt.value}
+                              value={opt.label}
+                              onSelect={() =>
+                                setValue("type", opt.value as any, {
+                                  shouldValidate: true,
+                                  shouldDirty: true,
+                                  shouldTouch: true,
+                                })
+                              }
+                            >
+                              <Check
+                                className={`mr-2 h-4 w-4 ${
+                                  selectedType === opt.value
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                }`}
+                              />
+                              {opt.label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+
+                  <InlineError msg={errors.type?.message} />
+                </>
               )}
-              {!isView && <InlineError msg={errors.type?.message} />}
             </div>
 
             {/* City combobox */}

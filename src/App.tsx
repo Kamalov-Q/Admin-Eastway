@@ -52,7 +52,7 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function AppRouter() {
+export default function AppRouter() { 
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

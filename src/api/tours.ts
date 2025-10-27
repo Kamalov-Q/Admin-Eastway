@@ -43,6 +43,7 @@ export type ToursQuery = {
     name?: string;
     city?: string;
     category?: string;
+    type?: string
     limit?: number;
     page?: number;
 };

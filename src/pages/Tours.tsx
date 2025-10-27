@@ -33,7 +33,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-const ALL = "__ALL__"; // sentinel
+const ALL = "__ALL__";
 
 function useDebounced<T>(value: T, delay = 400) {
   const [v, setV] = React.useState(value);
@@ -48,14 +48,16 @@ export default function ToursPage() {
   const [country, setCountry] = React.useState<string>("");
   const [city, setCity] = React.useState<string>("");
   const [name, setName] = React.useState<string>("");
-  const [category, setCategory] = React.useState<string>(""); // string label filter
+  const [category, setCategory] = React.useState<string>("");
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
+  const [type, setType] = React.useState<string>("");
 
   const dCountry = useDebounced(country);
   const dCity = useDebounced(city);
   const dName = useDebounced(name);
   const dCategory = useDebounced(category);
+  const dType = useDebounced(type);
 
   const countriesQuery = useCountries();
   const countriesRaw = countriesQuery.data as any;
@@ -69,7 +71,6 @@ export default function ToursPage() {
   });
   const cities: City[] = citiesQuery.data ?? [];
 
-  // categories for the toolbar Select (keeps your query as string)
   const tourCatsQuery = useTourCategories();
   const catsRaw = tourCatsQuery.data as any;
   const tourCategories: Category[] = Array.isArray(catsRaw)
@@ -81,11 +82,12 @@ export default function ToursPage() {
       country: dCountry || undefined,
       city: dCity || undefined,
       name: dName || undefined,
-      category: dCategory || undefined, // your backend expects a name-like string
+      type: dType || undefined,
+      category: dCategory || undefined,
       page,
       limit,
     }),
-    [dCountry, dCity, dName, dCategory, page, limit]
+    [dCountry, dCity, dName, dCategory, dType, page, limit]
   );
 
   const {
@@ -96,7 +98,7 @@ export default function ToursPage() {
     error,
   } = useTours(params);
 
-  React.useEffect(() => setPage(1), [dCountry, dCity, dName, dCategory]);
+  React.useEffect(() => setPage(1), [dCountry, dCity, dType, dName, dCategory]);
 
   const createTour = useCreateTour();
   const updateTour = useUpdateTour();
@@ -273,6 +275,24 @@ export default function ToursPage() {
                   {catLabel(tc)}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Type */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm text-gray-600">Type</label>
+          <Select
+            value={type || undefined}
+            onValueChange={(v) => setType(v === ALL ? "" : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All types</SelectItem>
+              <SelectItem value="private">Private</SelectItem>
+              <SelectItem value="public">Public</SelectItem>
             </SelectContent>
           </Select>
         </div>

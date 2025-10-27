@@ -146,7 +146,7 @@ export function RequestViewModal({ open, onOpenChange, request }: Props) {
                 <div className="mb-2 text-sm font-medium text-gray-800">
                   Comment
                 </div>
-                <div className="rounded-lg border bg-white p-3 text-sm leading-relaxed whitespace-pre-wrap break-words max-h-56 overflow-auto">
+                <div className="rounded-lg border bg-white p-3 text-sm leading-relaxed whitespace-pre-wrap wrap-break-words max-h-56 overflow-auto">
                   {request.comment || "-"}
                 </div>
               </div>

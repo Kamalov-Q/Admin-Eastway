@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Tag,
-  Ticket,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -30,7 +29,7 @@ export default function Sidebar() {
     { path: "/requests", label: "Requests", icon: FileText },
     { path: "/tour-category", label: "Tour Category", icon: Tag },
     { path: "/hotel-category", label: "Hotel Category", icon: Tag },
-    { path: "/tour-tariff", label: "Tour Tariff", icon: Ticket },
+    // { path: "/tour-tariff", label: "Tour Tariff", icon: Ticket },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -67,7 +66,7 @@ export default function Sidebar() {
               }`}
               title={isCollapsed ? item.label : ""}
             >
-              <Icon size={20} className="flex-shrink-0" />
+              <Icon size={20} className="shrink-0" />
               {!isCollapsed && <span>{item.label}</span>}
             </Link>
           );
