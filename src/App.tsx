@@ -25,40 +25,27 @@ import TourTariffsPage from "./pages/TourTariff";
 function ProtectedRoute({ children }: { children: JSX.Element }) {
   const { token } = useAuthStore();
   const location = useLocation();
-
-  if (!token) {
+  if (!token)
     return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
   return children;
 }
 
 function LoginRoute() {
   const { token } = useAuthStore();
-
-  if (token) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (token) return <Navigate to="/" replace />;
   return <LoginPage />;
 }
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
 
-export default function AppRouter() { 
+export default function AppRouter() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginRoute />} />
-
           <Route
             path="/"
             element={
@@ -77,7 +64,6 @@ export default function AppRouter() {
             <Route path="hotel-category" element={<HotelCategoriesPage />} />
             <Route path="tour-tariff" element={<TourTariffsPage />} />
           </Route>
-
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <Toaster position="top-right" />

@@ -35,31 +35,29 @@ export default function LoginPage() {
       }
 
       login(token);
-      toast.success("Login successful!", { duration: 2000 });
+      toast.success("Login successful!", { duration: 1200 });
 
-      setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 100);
+      sessionStorage.setItem("eastway_show_welcome", "1");
+
+      navigate("/", { replace: true });
     },
     onError: (err: any) => {
-      console.error("Login error:", err.response?.data);
+      console.error("Login error:", err?.response?.data);
       toast.error(
-        err.response?.data?.message ||
-          err.response?.data?.error ||
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
           "Login failed",
         { duration: 2000 }
       );
     },
   });
 
-  const onSubmit = (data: LoginForm) => {
-    mutation.mutate(data);
-  };
+  const onSubmit = (data: LoginForm) => mutation.mutate(data);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-linear-to-tr from-indigo-600 via-blue-500 to-purple-500 overflow-hidden">
-      <div className="absolute -top-28 -left-28 w-96 h-96 bg-white/20 rounded-full blur-3xl"></div>
-      <div className="absolute -bottom-20 -right-16 w-80 h-80 bg-white/10 rounded-full blur-2xl"></div>
+      <div className="absolute -top-28 -left-28 w-96 h-96 bg-white/20 rounded-full blur-3xl" />
+      <div className="absolute -bottom-20 -right-16 w-80 h-80 bg-white/10 rounded-full blur-2xl" />
 
       <div className="relative z-10 bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl p-8 md:p-10 w-80 sm:w-96">
         <div className="text-center mb-6">
@@ -95,10 +93,12 @@ export default function LoginPage() {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
+
           <Button
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg transition"

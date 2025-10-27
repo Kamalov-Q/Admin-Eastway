@@ -39,9 +39,8 @@ export default function Header() {
         {/* Left: Brand */}
         <div className="flex items-center gap-3">
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Tours Dashboard</div>
-            <div className="text-[11px] text-muted-foreground">
-              Welcome{name ? `, ${name.split(" ")[0]}` : ""}
+            <div className="text-sm font-semibold">
+              Welcome to Tours Dashboard
             </div>
           </div>
         </div>
