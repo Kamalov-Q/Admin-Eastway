@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import type { Tour } from "@/api/tours";
 import {
@@ -82,7 +80,7 @@ export default function ToursPage() {
       country: dCountry || undefined,
       city: dCity || undefined,
       name: dName || undefined,
-      type: dType || undefined,
+      type: dType === "private" || dType === "group" ? dType : undefined,
       category: dCategory || undefined,
       page,
       limit,
@@ -158,8 +156,13 @@ export default function ToursPage() {
   const tours = pageData?.data ?? [];
   const totalPages = pageData?.totalPages ?? undefined;
   const currentPage = pageData?.page ?? page;
+
+  // ✅ safer Prev/Next logic when totalPages not provided
   const canPrev = currentPage > 1;
-  const canNext = totalPages ? currentPage < totalPages : true;
+  const canNext =
+    typeof totalPages === "number"
+      ? currentPage < totalPages
+      : tours.length >= limit; // if fewer than limit, likely last page
 
   const countryLabel = (c: Country) =>
     (c as any).name_en ||
@@ -253,7 +256,7 @@ export default function ToursPage() {
           />
         </div>
 
-        {/* Category (string filter) */}
+        {/* Category */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Category</label>
           <Select
@@ -292,7 +295,7 @@ export default function ToursPage() {
             <SelectContent>
               <SelectItem value={ALL}>All types</SelectItem>
               <SelectItem value="private">Private</SelectItem>
-              <SelectItem value="public">Public</SelectItem>
+              <SelectItem value="group">Group</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -320,7 +323,7 @@ export default function ToursPage() {
         <div className="flex items-end">
           <div className="text-sm text-gray-600">
             Page <span className="font-medium">{currentPage}</span>
-            {totalPages ? (
+            {typeof totalPages === "number" ? (
               <>
                 {" "}
                 of <span className="font-medium">{totalPages}</span>

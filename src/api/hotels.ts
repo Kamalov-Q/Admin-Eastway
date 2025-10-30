@@ -1,13 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "./axios";
 
-export const LANGS = ["en", "ru", "gr", "jp", "es", "zh"] as const;
+export const LANGS = ["en", "ru", "zh", "jp", "gr", "es"] as const;
 export type Lang = (typeof LANGS)[number];
 
 export type HotelDistance = {
-    place: string;
+    // Multilingual place fields
+    place_en: string;
+    place_ru?: string;
+    place_zh?: string;
+    place_jp?: string;
+    place_gr?: string;
+    place_es?: string;
+
     distance_km: number;
-    duration: number;
+    duration: number; // minutes
 };
 
 export type MultiName = {
@@ -51,10 +58,7 @@ export type Hotel = {
 
     cityId: number;
     categoryId: number;
-    category: {
-        id: number,
-        name_en: string
-    }
+    category?: { id: number; name_en: string };
 };
 
 export type HotelsQuery = {

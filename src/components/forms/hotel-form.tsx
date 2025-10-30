@@ -1,4 +1,3 @@
-
 import * as React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -32,12 +31,19 @@ import {
 } from "@/components/ui/command";
 import { useHotelCategories } from "@/api/hotel-category";
 
-const emptyLangObject = () =>
+const emptyNameObject = () =>
   LANGS.reduce(
     (acc, lang) => ({ ...acc, [`name_${lang}`]: "" }),
     {} as Record<`name_${Lang}`, string>
   );
 
+const emptyPlaceObject = () =>
+  LANGS.reduce(
+    (acc, lang) => ({ ...acc, [`place_${lang}`]: "" }),
+    {} as Record<`place_${Lang}`, string>
+  );
+
+// ====== SCHEMA ======
 const schema = z.object({
   ...LANGS.reduce(
     (acc, lang) => ({
@@ -58,20 +64,29 @@ const schema = z.object({
     {} as Record<`desc_${Lang}` | `address_${Lang}`, any>
   ),
 
-  cityId: z.number().min(1, "City is required"),
-  categoryId: z.number().min(1, "Category is required"),
+  cityId: z.coerce.number().int().min(1, "City is required"),
+  categoryId: z.coerce.number().int().min(1, "Category is required"),
 
-  // File pickers
   thumbnailFile: z.any().optional(),
 
-  // Distances
+  // Distances: multilingual place + numbers
   distances: z
     .array(
-      z.object({
-        place: z.string().min(1, "Place is required"),
-        distance_km: z.number().min(0, "Distance must be ≥ 0"),
-        duration: z.number().min(0, "Duration must be ≥ 0"),
-      })
+      z
+        .object({
+          ...LANGS.reduce(
+            (acc, lang) => ({
+              ...acc,
+              [`place_${lang}`]: z
+                .string()
+                .min(1, `Place (${lang.toUpperCase()}) is required`),
+            }),
+            {} as Record<`place_${Lang}`, z.ZodString>
+          ),
+          distance_km: z.coerce.number().min(0, "Distance must be ≥ 0"),
+          duration: z.coerce.number().min(0, "Duration must be ≥ 0"),
+        })
+        .strict()
     )
     .min(1, "Add at least one distance"),
 
@@ -127,12 +142,12 @@ const schema = z.object({
 
 export type HotelFormValues = z.infer<typeof schema>;
 
+// ====== COMPONENT ======
 type Props = {
   open: boolean;
   onOpenChange: (val: boolean) => void;
   initialData?: Hotel | null;
   onSubmit: (values: Partial<Hotel>) => Promise<void> | void;
-  /** "create" | "edit" | "view" */
   mode?: "create" | "edit" | "view";
 };
 
@@ -156,7 +171,9 @@ export function HotelFormModal({
     []
   );
 
-  const { data: cities = [], isLoading: citiesLoading } = useCities({limit: 20});
+  const { data: cities = [], isLoading: citiesLoading } = useCities({
+    limit: 20,
+  });
   const {
     data: categories = [],
     isLoading: categoriesLoading,
@@ -172,14 +189,14 @@ export function HotelFormModal({
     setValue,
     watch,
   } = useForm<HotelFormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as any,
     defaultValues: {
       cityId: 0,
       categoryId: 0,
-      distances: [{ place: "", distance_km: 0, duration: 0 }],
-      infos: [emptyLangObject()],
-      services: [emptyLangObject()],
-      property: [emptyLangObject()],
+      distances: [{ ...emptyPlaceObject(), distance_km: 0, duration: 0 }],
+      infos: [emptyNameObject()],
+      services: [emptyNameObject()],
+      property: [emptyNameObject()],
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
@@ -197,28 +214,40 @@ export function HotelFormModal({
   const servicesArray = useFieldArray({ control, name: "services" });
   const propertyArray = useFieldArray({ control, name: "property" });
 
+  // Seed initial data
   React.useEffect(() => {
     if (!open) return;
 
     if (initialData) {
+      const normalizedDistances =
+        (initialData.distances || []).map((d: any) => ({
+          // Support old shape with "place"
+          place_en: d.place_en ?? d.place ?? "",
+          place_ru: d.place_ru ?? "",
+          place_zh: d.place_zh ?? "",
+          place_jp: d.place_jp ?? "",
+          place_gr: d.place_gr ?? "",
+          place_es: d.place_es ?? "",
+          distance_km: Number(d.distance_km ?? 0),
+          duration: Number(d.duration ?? 0),
+        })) || [];
+
       reset({
         cityId: initialData.cityId ?? 0,
         categoryId: initialData.categoryId ?? 0,
-
-        distances: initialData.distances?.length
-          ? initialData.distances
-          : [{ place: "", distance_km: 0, duration: 0 }],
-
+        distances:
+          normalizedDistances.length > 0
+            ? normalizedDistances
+            : [{ ...emptyPlaceObject(), distance_km: 0, duration: 0 }],
         infos: initialData.infos?.length
           ? (initialData.infos as any)
-          : [emptyLangObject()],
+          : [emptyNameObject()],
         services: initialData.services?.length
           ? (initialData.services as any)
-          : [emptyLangObject()],
+          : [emptyNameObject()],
         property: initialData.property?.length
           ? (initialData.property as any)
-          : [emptyLangObject()],
-
+          : [emptyNameObject()],
         ...LANGS.reduce(
           (acc, lang) => ({
             ...acc,
@@ -284,16 +313,24 @@ export function HotelFormModal({
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const onSubmitHandler = async (values: HotelFormValues) => {
+  function uniqueByUrl(arr: { url: string }[]) {
+    const seen = new Set<string>();
+    return arr.filter((i) => {
+      if (seen.has(i.url)) return false;
+      seen.add(i.url);
+      return true;
+    });
+  }
+
+  const onSubmitHandler = handleSubmit(async (values) => {
     if (isView) {
       onOpenChange(false);
       return;
     }
 
-    // Require a thumbnail like tours
     if (
       !thumbnailPreview &&
-      (!values.thumbnailFile || values.thumbnailFile.length === 0) &&
+      (!values.thumbnailFile || (values.thumbnailFile as any).length === 0) &&
       !initialData?.thumbnail
     ) {
       alert("Thumbnail is required.");
@@ -301,8 +338,8 @@ export function HotelFormModal({
     }
 
     let thumbnailUrl = initialData?.thumbnail ?? null;
-    if (values.thumbnailFile?.[0]) {
-      thumbnailUrl = await uploadThumbnail(values.thumbnailFile[0]);
+    if ((values as any).thumbnailFile?.[0]) {
+      thumbnailUrl = await uploadThumbnail((values as any).thumbnailFile[0]);
     }
 
     let uploadedNewUrls: string[] = [];
@@ -310,24 +347,68 @@ export function HotelFormModal({
       uploadedNewUrls = await uploadImages(newImageFiles, "hotels");
     }
 
-    const mergedImages = [
+    const mergedImages = uniqueByUrl([
       ...existingImageUrls.map((url) => ({ url })),
       ...uploadedNewUrls.map((url) => ({ url })),
-    ];
+    ]);
 
-    // Build the exact backend payload
-    const payload: Partial<Hotel> = {
-      cityId: values.cityId,
-      categoryId: values.categoryId,
+    interface DistancePayload {
+      place_en: string;
+      place_ru: string;
+      place_zh: string;
+      place_jp: string;
+      place_gr: string;
+      place_es: string;
+      distance_km: number;
+      duration: number;
+    }
 
+    interface MultilingualName {
+      name_en: string;
+      name_ru: string;
+      name_zh: string;
+      name_jp: string;
+      name_gr: string;
+      name_es: string;
+    }
+
+    interface Payload extends Partial<Hotel> {
+      cityId: number;
+      categoryId: number;
+      thumbnail?: string;
+      images: { url: string }[];
+      distances: DistancePayload[];
+      infos: MultilingualName[];
+      services: MultilingualName[];
+      property: MultilingualName[];
+      [key: string]: any;
+    }
+
+    const payload: Payload = {
+      cityId: Number(values.cityId),
+      categoryId: Number(values.categoryId),
       thumbnail: thumbnailUrl ?? undefined,
       images: mergedImages,
-
-      distances: values.distances,
-      infos: values.infos,
-      services: values.services,
-      property: values.property,
-
+      // keep all place_* fields
+      distances: values.distances.map(
+        (d: any): DistancePayload => ({
+          place_en: d.place_en.trim(),
+          place_ru: d.place_ru?.trim() || "",
+          place_zh: d.place_zh?.trim() || "",
+          place_jp: d.place_jp?.trim() || "",
+          place_gr: d.place_gr?.trim() || "",
+          place_es: d.place_es?.trim() || "",
+          distance_km: Number(d.distance_km) || 0,
+          duration: Number(d.duration) || 0,
+        })
+      ),
+      infos: values.infos.map((row: any): MultilingualName => ({ ...row })),
+      services: values.services.map(
+        (row: any): MultilingualName => ({ ...row })
+      ),
+      property: values.property.map(
+        (row: any): MultilingualName => ({ ...row })
+      ),
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
@@ -341,7 +422,7 @@ export function HotelFormModal({
 
     await onSubmit(payload);
     onOpenChange(false);
-  };
+  });
 
   const Label = ({
     children,
@@ -377,8 +458,7 @@ export function HotelFormModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6">
-          {/* ====== Names / Descriptions / Address (6 langs) ====== */}
+        <form onSubmit={onSubmitHandler} className="space-y-6">
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
@@ -403,9 +483,9 @@ export function HotelFormModal({
             ))}
           </div>
 
-          {/* ====== City / Category ====== */}
+          {/* City / Category */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* City (searchable; read-only text in view) */}
+            {/* City */}
             <div>
               <Label required>City</Label>
               {isView ? (
@@ -477,7 +557,7 @@ export function HotelFormModal({
               {!isView && <InlineError msg={(errors as any).cityId?.message} />}
             </div>
 
-            {/* Category (searchable select by categoryId; display category?.name_en) */}
+            {/* Category */}
             <div>
               <Label required>Category</Label>
               {isView ? (
@@ -544,7 +624,7 @@ export function HotelFormModal({
             </div>
           </div>
 
-          {/* ====== Thumbnail ====== */}
+          {/* Thumbnail */}
           <div>
             <Label required>Thumbnail</Label>
             {!isView && (
@@ -570,7 +650,7 @@ export function HotelFormModal({
             )}
           </div>
 
-          {/* ====== Images (existing + new previews) ====== */}
+          {/* Images */}
           <div>
             <Label>Hotel Images</Label>
             {!isView && (
@@ -615,7 +695,7 @@ export function HotelFormModal({
             </div>
           </div>
 
-          {/* ====== Distances ====== */}
+          {/* Distances (multilingual places) */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Distances</Label>
@@ -626,7 +706,7 @@ export function HotelFormModal({
                   variant="outline"
                   onClick={() =>
                     distancesArray.append({
-                      place: "",
+                      ...emptyPlaceObject(),
                       distance_km: 0,
                       duration: 0,
                     })
@@ -636,8 +716,9 @@ export function HotelFormModal({
                 </Button>
               )}
             </div>
+
             {distancesArray.fields.map((field, index) => (
-              <div key={field.id} className="border rounded-lg p-3 space-y-2">
+              <div key={field.id} className="border rounded-lg p-3 space-y-3">
                 <div className="flex justify-between items-center">
                   <p className="text-sm font-medium">Distance #{index + 1}</p>
                   {!isView && (
@@ -651,32 +732,44 @@ export function HotelFormModal({
                     </Button>
                   )}
                 </div>
+
+                {/* Places grid (6 langs) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <div>
-                    <Input
-                      placeholder="Place (e.g., Airport)"
-                      {...register(`distances.${index}.place` as const)}
-                      {...ro}
-                    />
-                    {!isView && (
-                      <InlineError
-                        msg={(errors.distances?.[index] as any)?.place?.message}
+                  {LANGS.map((lang) => (
+                    <div key={lang}>
+                      <Input
+                        placeholder={`Place (${lang.toUpperCase()})`}
+                        {...register(
+                          `distances.${index}.place_${lang}` as const
+                        )}
+                        {...ro}
                       />
-                    )}
-                  </div>
+                      {!isView && (
+                        <InlineError
+                          msg={
+                            (errors as any)?.distances?.[index]?.[
+                              `place_${lang}`
+                            ]?.message
+                          }
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Numbers */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
                     <Input
                       type="number"
                       placeholder="Distance (km)"
-                      {...register(`distances.${index}.distance_km` as const, {
-                        valueAsNumber: true,
-                      })}
+                      {...register(`distances.${index}.distance_km` as const)}
                       {...ro}
                     />
                     {!isView && (
                       <InlineError
                         msg={
-                          (errors.distances?.[index] as any)?.distance_km
+                          (errors as any)?.distances?.[index]?.distance_km
                             ?.message
                         }
                       />
@@ -686,15 +779,13 @@ export function HotelFormModal({
                     <Input
                       type="number"
                       placeholder="Duration (min)"
-                      {...register(`distances.${index}.duration` as const, {
-                        valueAsNumber: true,
-                      })}
+                      {...register(`distances.${index}.duration` as const)}
                       {...ro}
                     />
                     {!isView && (
                       <InlineError
                         msg={
-                          (errors.distances?.[index] as any)?.duration?.message
+                          (errors as any)?.distances?.[index]?.duration?.message
                         }
                       />
                     )}
@@ -707,7 +798,7 @@ export function HotelFormModal({
             )}
           </section>
 
-          {/* ====== Infos / Services / Property ====== */}
+          {/* Infos / Services / Property */}
           {[
             { label: "Infos", arr: infosArray, name: "infos" as const },
             {
@@ -729,7 +820,7 @@ export function HotelFormModal({
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => arr.append(emptyLangObject())}
+                    onClick={() => arr.append(emptyNameObject())}
                   >
                     <Plus className="w-4 h-4 mr-1" /> Add {label.toLowerCase()}
                   </Button>

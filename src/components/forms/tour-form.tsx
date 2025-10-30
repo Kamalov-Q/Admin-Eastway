@@ -1,8 +1,15 @@
 "use client";
+
 import * as React from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import {
+  useForm,
+  useFieldArray,
+  type Resolver,
+  type DefaultValues,
+} from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
 import {
   Dialog,
   DialogContent,
@@ -12,13 +19,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useTours, type Tour } from "@/api/tours";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
 import { X, Plus, Trash2, Check } from "lucide-react";
 
 import { useCities } from "@/api/cities";
 import { useTourCategories, type Category } from "@/api/tour-category";
-import { type TourTariff } from "@/api/tour-tariff";
+import type { Tour } from "@/api/tours";
 
 import {
   Popover,
@@ -33,73 +39,74 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 
+/** --- i18n setup (6 languages) --- */
 const LANGS = ["en", "ru", "gr", "jp", "es", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 
-const emptyLangObject = () =>
+const emptyNameObj = () =>
   LANGS.reduce(
     (acc, lang) => ({ ...acc, [`name_${lang}`]: "" }),
     {} as Record<`name_${Lang}`, string>
   );
 
+const emptyActivityObj = () =>
+  LANGS.reduce(
+    (acc, lang) => ({ ...acc, [`activity_${lang}`]: "" }),
+    {} as Record<`activity_${Lang}`, string>
+  );
+
+/** --- Zod schema (strictly typed) --- */
 const schema = z.object({
-  days: z.number().min(1, "Days is required"),
+  days: z.coerce.number().min(1, "Days is required"),
   type: z.enum(["private", "group"] as const, {
     message: "Tour type is required",
   }),
-  cityId: z.number().min(1, "City is required"),
-  tourCategoryId: z.number().min(1, "Category is required"),
+  cityId: z.coerce.number().int().min(1, "City is required"),
+  tourCategoryId: z.coerce.number().int().min(1, "Category is required"),
   youtubeLink: z.string().url("Must be a valid YouTube URL"),
   thumbnailFile: z.any().optional(),
+
   infos: z
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({
-            ...acc,
-            [`name_${lang}`]: z
-              .string()
-              .min(1, `${lang.toUpperCase()} info is required`),
-          }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
     .min(1, "Add at least one info"),
+
   routes: z
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({
-            ...acc,
-            [`name_${lang}`]: z
-              .string()
-              .min(1, `${lang.toUpperCase()} route is required`),
-          }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
     .min(1, "Add at least one route"),
+
+  /** Multilingual itinerary */
   itinerary: z
     .array(
       z.object({
-        day: z.number().min(1, "Day must be ≥ 1"),
-        activity: z.string().min(1, "Activity is required"),
+        day: z.coerce.number().min(1, "Day must be ≥ 1"),
+        ...LANGS.reduce(
+          (acc, lang) => ({ ...acc, [`activity_${lang}`]: z.string().min(1) }),
+          {} as Record<`activity_${Lang}`, z.ZodString>
+        ),
       })
     )
     .min(1, "Add at least one itinerary entry"),
-  priceAmount: z.number().min(1, "Price is required"),
+
+  priceAmount: z.coerce.number().min(1, "Price is required"),
   priceIncluded: z
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({
-            ...acc,
-            [`name_${lang}`]: z
-              .string()
-              .min(1, `${lang.toUpperCase()} item is required`),
-          }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
@@ -109,23 +116,17 @@ const schema = z.object({
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({
-            ...acc,
-            [`name_${lang}`]: z
-              .string()
-              .min(1, `${lang.toUpperCase()} item is required`),
-          }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
     .min(1, "Add at least one not-included item"),
+
   ...LANGS.reduce(
     (acc, lang) => ({
       ...acc,
-      [`title_${lang}`]: z
-        .string()
-        .min(1, `Title (${lang.toUpperCase()}) is required`),
+      [`title_${lang}`]: z.string().min(1),
       [`desc_${lang}`]: z.string().optional(),
       [`address_${lang}`]: z.string().optional(),
     }),
@@ -134,6 +135,18 @@ const schema = z.object({
 });
 
 export type TourFormValues = z.infer<typeof schema>;
+
+/** Make sure your Tour type supports multilingual itinerary like this:
+ * itinerary?: {
+ *   day: number;
+ *   activity_en: string;
+ *   activity_ru?: string;
+ *   activity_gr?: string;
+ *   activity_jp?: string;
+ *   activity_es?: string;
+ *   activity_zh?: string;
+ * }[];
+ */
 
 type Props = {
   open: boolean;
@@ -166,9 +179,8 @@ export function TourFormModal({
   const { data: cities = [], isLoading: citiesLoading } = useCities({
     limit: 100,
   });
-
-  // categories
   const tourCatsQuery = useTourCategories();
+
   const categories: Category[] = React.useMemo(() => {
     const raw = tourCatsQuery.data as any;
     return Array.isArray(raw) ? raw : raw?.data ?? [];
@@ -185,21 +197,6 @@ export function TourFormModal({
         `#${c.id}`
       : "";
 
-  const tariffsQuery = useTours({ limit: 1000 });
-  const tariffs: TourTariff[] = React.useMemo(() => {
-    const raw = tariffsQuery.data as any;
-    return Array.isArray(raw) ? raw : raw?.data ?? [];
-  }, [tariffsQuery.data]);
-
-  const derivedInitialTariffIds = React.useMemo<number[]>(() => {
-    const direct: number[] = (initialData as any)?.tariffIds ?? [];
-    if (direct?.length) return direct;
-    const fromRel =
-      ((initialData as any)?.tariff as any[])?.map((x: any) => x.tariffId) ??
-      [];
-    return fromRel;
-  }, [initialData]);
-
   const {
     register,
     handleSubmit,
@@ -209,7 +206,7 @@ export function TourFormModal({
     setValue,
     watch,
   } = useForm<TourFormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<TourFormValues>,
     defaultValues: {
       days: initialData?.days ?? 1,
       type: (initialData?.type as any) ?? ("" as any),
@@ -218,20 +215,20 @@ export function TourFormModal({
       youtubeLink: initialData?.youtubeLink ?? "",
       infos: initialData?.infos?.length
         ? (initialData.infos as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       routes: initialData?.routes?.length
         ? (initialData.routes as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       itinerary: initialData?.itinerary?.length
-        ? initialData.itinerary
-        : [{ day: 1, activity: "" }],
+        ? (initialData.itinerary as any)
+        : [{ day: 1, ...emptyActivityObj() }],
       priceAmount: initialData?.price?.amount ?? 1,
       priceIncluded: initialData?.price?.included?.length
         ? (initialData.price.included as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       priceNotIncluded: initialData?.price?.notIncluded?.length
         ? (initialData.price.notIncluded as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
@@ -241,19 +238,17 @@ export function TourFormModal({
         }),
         {} as Record<string, string>
       ),
-      // tariffIds: derivedInitialTariffIds,
-    },
+    } as DefaultValues<TourFormValues>,
   });
 
-  const TYPE_OPTIONS = [
-    { value: "private", label: "Private" },
-    { value: "group", label: "Group" },
-  ];
-  const getTypeLabel = (v?: string | null) =>
-    TYPE_OPTIONS.find((o) => o.value === v)?.label ?? "";
-
-  // inside your component (you already have setValue, watch, errors, register, isView, initialData)
-  const selectedType = watch("type");
+  const infosArray = useFieldArray({ control, name: "infos" });
+  const routesArray = useFieldArray({ control, name: "routes" });
+  const itineraryArray = useFieldArray({ control, name: "itinerary" });
+  const priceIncludedArray = useFieldArray({ control, name: "priceIncluded" });
+  const priceNotIncludedArray = useFieldArray({
+    control,
+    name: "priceNotIncluded",
+  });
 
   React.useEffect(() => {
     if (!open) return;
@@ -265,20 +260,20 @@ export function TourFormModal({
       youtubeLink: initialData?.youtubeLink ?? "",
       infos: initialData?.infos?.length
         ? (initialData.infos as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       routes: initialData?.routes?.length
         ? (initialData.routes as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       itinerary: initialData?.itinerary?.length
-        ? initialData.itinerary
-        : [{ day: 1, activity: "" }],
+        ? (initialData.itinerary as any)
+        : [{ day: 1, ...emptyActivityObj() }],
       priceAmount: initialData?.price?.amount ?? 1,
       priceIncluded: initialData?.price?.included?.length
         ? (initialData.price.included as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       priceNotIncluded: initialData?.price?.notIncluded?.length
         ? (initialData.price.notIncluded as any)
-        : [emptyLangObject()],
+        : [emptyNameObj()],
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
@@ -288,28 +283,21 @@ export function TourFormModal({
         }),
         {} as Record<string, string>
       ),
-      // tariffIds: derivedInitialTariffIds,
-    });
+    } as DefaultValues<TourFormValues>);
+
     setThumbnailPreview(initialData?.thumbnail ?? null);
     setExistingImageUrls(initialData?.images?.map((i) => i.url) ?? []);
     setNewImageFiles([]);
     setNewImagePreviews([]);
-  }, [open, initialData, reset, derivedInitialTariffIds]);
-
-  const infosArray = useFieldArray({ control, name: "infos" });
-  const routesArray = useFieldArray({ control, name: "routes" });
-  const itineraryArray = useFieldArray({ control, name: "itinerary" });
-  const priceIncludedArray = useFieldArray({ control, name: "priceIncluded" });
-  const priceNotIncludedArray = useFieldArray({
-    control,
-    name: "priceNotIncluded",
-  });
+  }, [open, initialData, reset]);
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
     const file = e.target.files?.[0];
     if (file) {
-      setThumbnailPreview(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onload = () => setThumbnailPreview(reader.result as string);
+      reader.readAsDataURL(file);
       setValue("thumbnailFile", e.target.files as any);
     }
   };
@@ -317,22 +305,38 @@ export function TourFormModal({
   const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
     const files = e.target.files ? Array.from(e.target.files) : [];
-    if (files.length === 0) return;
+    if (!files.length) return;
     setNewImageFiles((prev) => [...prev, ...files]);
-    const newPreviews = files.map((f) => URL.createObjectURL(f));
-    setNewImagePreviews((prev) => [...prev, ...newPreviews]);
+    const previews = files.map((f) => URL.createObjectURL(f));
+    setNewImagePreviews((prev) => [...prev, ...previews]);
   };
 
   const removeExistingImage = (url: string) => {
     if (isView) return;
     setExistingImageUrls((prev) => prev.filter((u) => u !== url));
   };
-
   const removeNewImage = (index: number) => {
     if (isView) return;
     setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const selectedCityId = watch("cityId");
+  const selectedCategoryId = watch("tourCategoryId");
+  const ro = isView ? { readOnly: true, disabled: true } : {};
+
+  const selectedCity = cities.find((c) => c.id === selectedCityId);
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+
+  const TYPE_OPTIONS = [
+    { value: "private", label: "Private" },
+    { value: "group", label: "Group" },
+  ] as const;
+  const selectedType = watch("type") as
+    | (typeof TYPE_OPTIONS)[number]["value"]
+    | undefined;
+  const getTypeLabel = (v?: string | null) =>
+    TYPE_OPTIONS.find((o) => o.value === v)?.label ?? "";
 
   const onSubmitHandler = async (values: TourFormValues) => {
     if (isView) {
@@ -342,15 +346,18 @@ export function TourFormModal({
 
     if (
       !thumbnailPreview &&
-      (!values.thumbnailFile || values.thumbnailFile.length === 0)
+      (!(values as any).thumbnailFile ||
+        (values as any).thumbnailFile.length === 0) &&
+      !initialData?.thumbnail
     ) {
       alert("Thumbnail is required.");
       return;
     }
 
     let thumbnailUrl = initialData?.thumbnail ?? null;
-    if (values.thumbnailFile?.[0]) {
-      thumbnailUrl = await uploadThumbnail(values.thumbnailFile[0]);
+    const fileList = (values as any).thumbnailFile as FileList | undefined;
+    if (fileList?.[0]) {
+      thumbnailUrl = await uploadThumbnail(fileList[0]);
     }
 
     let uploadedNewUrls: string[] = [];
@@ -368,17 +375,30 @@ export function TourFormModal({
       type: values.type,
       cityId: values.cityId,
       tourCategoryId: values.tourCategoryId,
-      thumbnail: thumbnailUrl ?? undefined,
       youtubeLink: values.youtubeLink,
+      thumbnail: thumbnailUrl ?? undefined,
       images: mergedImages,
+
       infos: values.infos,
       routes: values.routes,
-      itinerary: values.itinerary,
+
+      // multilingual itinerary mapped into backend shape
+      itinerary: values.itinerary.map((it) => ({
+        day: it.day,
+        activity_en: (it as any).activity_en,
+        activity_ru: (it as any).activity_ru,
+        activity_gr: (it as any).activity_gr,
+        activity_jp: (it as any).activity_jp,
+        activity_es: (it as any).activity_es,
+        activity_zh: (it as any).activity_zh,
+      })) as any,
+
       price: {
         amount: values.priceAmount,
         included: values.priceIncluded,
         notIncluded: values.priceNotIncluded,
       },
+
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
@@ -388,10 +408,6 @@ export function TourFormModal({
         }),
         {}
       ),
-      // NEW: attach tariffs if chosen
-      // ...(values.tariffIds && values.tariffIds.length
-      //   ? { tariffIds: values.tariffIds }
-      //   : {}),
     };
 
     await onSubmit(payload);
@@ -409,37 +425,8 @@ export function TourFormModal({
       {children} {required && <span className="text-red-500">*</span>}
     </label>
   );
-
   const InlineError = ({ msg }: { msg?: string }) =>
     msg ? <p className="text-red-500 text-xs mt-1">{msg}</p> : null;
-
-  const selectedCityId = watch("cityId");
-  const selectedCity = cities.find((c) => c.id === selectedCityId);
-
-  const selectedCategoryId = watch("tourCategoryId");
-  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
-
-  const ro = isView ? { readOnly: true, disabled: true } : {};
-
-  // Tariff multi-select
-  // const [openTariffs, setOpenTariffs] = React.useState(false);
-  // const selectedTariffIds = watch("tariffIds") || [];
-  // const selectedTariffs = React.useMemo(
-  //   () =>
-  //     selectedTariffIds
-  //       .map((id) => tariffs.find((t) => t.id === id))
-  //       .filter(Boolean) as TourTariff[],
-  //   [selectedTariffIds, tariffs]
-  // );
-
-  // const toggleTariff = (id: number) => {
-  //   if (isView) return;
-  //   const exists = selectedTariffIds.includes(id);
-  //   const next = exists
-  //     ? selectedTariffIds.filter((x: number) => x !== id)
-  //     : [...selectedTariffIds, id];
-  //   setValue("tariffIds", next, { shouldValidate: false });
-  // };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -451,7 +438,7 @@ export function TourFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6">
-          {/* Titles / Desc / Address across languages */}
+          {/* Multilingual fields */}
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
@@ -485,7 +472,6 @@ export function TourFormModal({
 
             <div>
               <Label required>Tour Type</Label>
-
               {isView ? (
                 <Input
                   value={
@@ -500,7 +486,6 @@ export function TourFormModal({
                 <>
                   {/* keep RHF field registered */}
                   <input type="hidden" {...register("type")} />
-
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
@@ -513,7 +498,6 @@ export function TourFormModal({
                           : "Select type"}
                       </Button>
                     </PopoverTrigger>
-
                     <PopoverContent className="w-full p-0">
                       <Command>
                         <CommandInput placeholder="Search type..." />
@@ -545,28 +529,27 @@ export function TourFormModal({
                       </Command>
                     </PopoverContent>
                   </Popover>
-
                   <InlineError msg={errors.type?.message} />
                 </>
               )}
             </div>
 
-            {/* City combobox */}
+            {/* City */}
             <div>
               <Label required>City</Label>
               {isView ? (
                 <Input
-                  value={
-                    selectedCity
-                      ? `${selectedCity.name_en}${
-                          selectedCity.name_ru
-                            ? ` - ${selectedCity.name_ru}`
-                            : ""
-                        }`
-                      : initialData?.cityId
+                  value={(() => {
+                    const c = cities.find((x) => x.id === watch("cityId"));
+                    if (c) {
+                      return `${c.name_en}${
+                        c.name_ru ? ` - ${c.name_ru}` : ""
+                      }`;
+                    }
+                    return initialData?.cityId
                       ? String(initialData.cityId)
-                      : ""
-                  }
+                      : "";
+                  })()}
                   readOnly
                   disabled
                 />
@@ -578,15 +561,15 @@ export function TourFormModal({
                       role="combobox"
                       className="w-full justify-between"
                     >
-                      {selectedCity
-                        ? `${selectedCity.name_en}${
-                            selectedCity.name_ru
-                              ? ` - ${selectedCity.name_ru}`
-                              : ""
-                          }`
-                        : citiesLoading
-                        ? "Loading..."
-                        : "Select a city"}
+                      {(() => {
+                        const c = cities.find((x) => x.id === watch("cityId"));
+                        if (c) {
+                          return `${c.name_en}${
+                            c.name_ru ? ` - ${c.name_ru}` : ""
+                          }`;
+                        }
+                        return citiesLoading ? "Loading..." : "Select a city";
+                      })()}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-full p-0">
@@ -606,7 +589,7 @@ export function TourFormModal({
                           >
                             <Check
                               className={`mr-2 h-4 w-4 ${
-                                city.id === selectedCityId
+                                city.id === watch("cityId")
                                   ? "opacity-100"
                                   : "opacity-0"
                               }`}
@@ -623,13 +606,15 @@ export function TourFormModal({
               {!isView && <InlineError msg={errors.cityId?.message} />}
             </div>
 
-            {/* Category combobox */}
+            {/* Category */}
             <div>
               <Label required>Category</Label>
               {isView ? (
                 <Input
                   value={
-                    categoryLabel(selectedCategory) ||
+                    categoryLabel(
+                      categories.find((c) => c.id === watch("tourCategoryId"))
+                    ) ||
                     (initialData?.tourCategoryId
                       ? `#${initialData.tourCategoryId}`
                       : "")
@@ -648,9 +633,12 @@ export function TourFormModal({
                     >
                       {tourCatsQuery.isLoading
                         ? "Loading categories…"
-                        : selectedCategory
-                        ? categoryLabel(selectedCategory)
-                        : "Select a category"}
+                        : (() => {
+                            const c = categories.find(
+                              (x) => x.id === watch("tourCategoryId")
+                            );
+                            return c ? categoryLabel(c) : "Select a category";
+                          })()}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-full p-0">
@@ -660,7 +648,7 @@ export function TourFormModal({
                       <CommandGroup className="max-h-64 overflow-auto">
                         {categories.map((c) => {
                           const lbl = categoryLabel(c);
-                          const checked = c.id === selectedCategoryId;
+                          const checked = c.id === watch("tourCategoryId");
                           return (
                             <CommandItem
                               key={c.id}
@@ -728,7 +716,7 @@ export function TourFormModal({
 
           {/* Images */}
           <div>
-            <Label required>Tour Images</Label>
+            <Label>Tour Images</Label>
             {!isView && (
               <Input
                 type="file"
@@ -780,7 +768,7 @@ export function TourFormModal({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => infosArray.append(emptyLangObject())}
+                  onClick={() => infosArray.append(emptyNameObj())}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add info
                 </Button>
@@ -822,9 +810,6 @@ export function TourFormModal({
                 </div>
               </div>
             ))}
-            {!isView && (
-              <InlineError msg={errors.infos?.message as string | undefined} />
-            )}
           </section>
 
           {/* Routes */}
@@ -836,7 +821,7 @@ export function TourFormModal({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => routesArray.append(emptyLangObject())}
+                  onClick={() => routesArray.append(emptyNameObj())}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add route
                 </Button>
@@ -878,12 +863,9 @@ export function TourFormModal({
                 </div>
               </div>
             ))}
-            {!isView && (
-              <InlineError msg={errors.routes?.message as string | undefined} />
-            )}
           </section>
 
-          {/* Itinerary */}
+          {/* Itinerary (multilingual) */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Itinerary</Label>
@@ -893,7 +875,7 @@ export function TourFormModal({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    itineraryArray.append({ day: 1, activity: "" })
+                    itineraryArray.append({ day: 1, ...emptyActivityObj() })
                   }
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add day
@@ -915,6 +897,7 @@ export function TourFormModal({
                     </Button>
                   )}
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   <div>
                     <Input
@@ -931,26 +914,32 @@ export function TourFormModal({
                       />
                     )}
                   </div>
-                  <div className="md:col-span-2">
-                    <Input
-                      placeholder="Activity"
-                      {...register(`itinerary.${index}.activity` as const)}
-                      {...ro}
-                    />
-                    {!isView && (
-                      <InlineError
-                        msg={errors.itinerary?.[index]?.activity?.message}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {LANGS.map((lang) => (
+                    <div key={lang}>
+                      <Input
+                        placeholder={`Activity ${lang.toUpperCase()}`}
+                        {...register(
+                          `itinerary.${index}.activity_${lang}` as const
+                        )}
+                        {...ro}
                       />
-                    )}
-                  </div>
+                      {!isView && (
+                        <InlineError
+                          msg={
+                            (errors.itinerary?.[index] as any)?.[
+                              `activity_${lang}`
+                            ]?.message
+                          }
+                        />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
-            {!isView && (
-              <InlineError
-                msg={errors.itinerary?.message as string | undefined}
-              />
-            )}
           </section>
 
           {/* Price / Included / Not included */}
@@ -970,7 +959,7 @@ export function TourFormModal({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => priceIncludedArray.append(emptyLangObject())}
+                  onClick={() => priceIncludedArray.append(emptyNameObj())}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add included
                 </Button>
@@ -1015,11 +1004,6 @@ export function TourFormModal({
                 </div>
               </div>
             ))}
-            {!isView && (
-              <InlineError
-                msg={errors.priceIncluded?.message as string | undefined}
-              />
-            )}
 
             <div className="flex items-center justify-between mt-2">
               <Label required>Not Included</Label>
@@ -1028,9 +1012,7 @@ export function TourFormModal({
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    priceNotIncludedArray.append(emptyLangObject())
-                  }
+                  onClick={() => priceNotIncludedArray.append(emptyNameObj())}
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add not-included
                 </Button>
@@ -1077,80 +1059,7 @@ export function TourFormModal({
                 </div>
               </div>
             ))}
-            {!isView && (
-              <InlineError
-                msg={errors.priceNotIncluded?.message as string | undefined}
-              />
-            )}
           </section>
-
-          {/* Tariffs multi-select (attach existing tariffs to this tour) */}
-          {/* <section className="space-y-2">
-            <Label>Attach Tariffs</Label>
-            <Popover open={openTariffs} onOpenChange={setOpenTariffs}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between"
-                  disabled={isView || tariffsQuery.isLoading}
-                >
-                  {tariffsQuery.isLoading
-                    ? "Loading tariffs…"
-                    : selectedTariffs.length
-                    ? `${selectedTariffs.length} selected`
-                    : "Select tariff(s)"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[420px] p-0 max-h-[60vh] overflow-y-auto">
-                <Command>
-                  <CommandInput placeholder="Search tariffs…" />
-                  <CommandEmpty>No tariffs found.</CommandEmpty>
-                  <CommandGroup>
-                    {tariffs.map((t) => {
-                      const checked = selectedTariffIds.includes(t.id);
-                      const label = t.name || `#${t.id}`;
-                      return (
-                        <CommandItem
-                          key={t.id}
-                          value={label}
-                          onSelect={() => toggleTariff(t.id)}
-                          className="flex items-center justify-between"
-                        >
-                          <div className="truncate">{label}</div>
-                          <Check
-                            className={`h-4 w-4 ${
-                              checked ? "opacity-100" : "opacity-0"
-                            }`}
-                          />
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            <div className="flex flex-wrap gap-2 mt-1">
-              {selectedTariffs.map((t) => (
-                <span
-                  key={t.id}
-                  className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-xs"
-                >
-                  {t.name || `#${t.id}`}
-                  {!isView && (
-                    <button
-                      type="button"
-                      className="ml-1 hover:opacity-70"
-                      onClick={() => toggleTariff(t.id)}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          </section> */}
 
           <DialogFooter>
             {isView ? (

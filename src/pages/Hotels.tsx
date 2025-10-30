@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import type { Hotel } from "@/api/hotels";
 import {
@@ -17,7 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HotelsTable } from "@/components/tables/hotels-table";
 import { HotelFormModal } from "@/components/forms/hotel-form";
-import { Loader2 } from "lucide-react";
+import {
+  Loader2,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+} from "lucide-react";
 import {
   Select,
   SelectTrigger,
@@ -57,6 +61,7 @@ export default function HotelsPage() {
   const [category, setCategory] = React.useState<string>("");
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
+  const [gotoInput, setGotoInput] = React.useState<string>("");
 
   const dCountry = useDebounced(country);
   const dCity = useDebounced(city);
@@ -90,13 +95,12 @@ export default function HotelsPage() {
       : (categoriesRaw as any).data ?? [];
   }, [categoriesRaw]);
 
-  // Build hotels query params
   const params = React.useMemo<HotelsQuery>(
     () => ({
       country: dCountry || undefined,
       city: dCity || undefined,
       name: dName || undefined,
-      category: dCategory || undefined, // <- send name_xx of category
+      category: dCategory || undefined,
       page,
       limit,
     }),
@@ -113,13 +117,13 @@ export default function HotelsPage() {
 
   React.useEffect(() => setPage(1), [dCountry, dCity, dName, dCategory]);
 
-  // one-time toast for query error
   const errorNotifiedRef = React.useRef(false);
   React.useEffect(() => {
     if (isError && !errorNotifiedRef.current) {
       toast.error((error as any)?.message ?? "Failed to load hotels.");
       errorNotifiedRef.current = true;
     }
+    if (!isError) errorNotifiedRef.current = false;
   }, [isError, error]);
 
   const createHotel = useCreateHotel();
@@ -166,6 +170,34 @@ export default function HotelsPage() {
     setFormOpen(false);
   };
 
+  // ---------- Pagination helpers ----------
+  const total = pageData?.total ?? 0;
+  const totalPages = Math.max(1, pageData?.totalPages ?? 1);
+  const currentPage = Math.min(Math.max(1, pageData?.page ?? page), totalPages);
+
+  React.useEffect(() => {
+    if (!isLoading && !isFetching && currentPage !== page) {
+      setPage(currentPage);
+    }
+  }, [currentPage, isLoading, isFetching]);
+
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
+
+  const goToPage = (p: number) => {
+    const next = Math.min(Math.max(1, p), totalPages);
+    setPage(next);
+  };
+
+  const onDelete = async (id: number) => {
+    await deleteHotel.mutateAsync(id);
+    // If we just deleted the last item on the page and there are previous pages, go back one page
+    const remaining = (pageData?.data?.length ?? 1) - 1;
+    if (remaining <= 0 && page > 1) {
+      setPage((p) => Math.max(1, p - 1));
+    }
+  };
+
   if (!pageData && isLoading) return <div className="p-6">Loading…</div>;
   if (isError)
     return (
@@ -173,10 +205,6 @@ export default function HotelsPage() {
     );
 
   const hotels = pageData?.data ?? [];
-  const totalPages = pageData?.totalPages ?? undefined;
-  const currentPage = pageData?.page ?? page;
-  const canPrev = currentPage > 1;
-  const canNext = totalPages ? currentPage < totalPages : true;
 
   const countryLabel = (c: Country) =>
     localized(c, ["name_en", "name_ru", "name_es"]) ?? String((c as any).id);
@@ -195,7 +223,7 @@ export default function HotelsPage() {
 
       {/* Toolbar */}
       <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
-        {/* Country (sends name_xx) */}
+        {/* Country */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Country</label>
           <Select
@@ -224,7 +252,6 @@ export default function HotelsPage() {
                 )
                 .map((c) => {
                   const label = countryLabel(c);
-                  // value is the string we send to the API
                   return (
                     <SelectItem key={c.id} value={label}>
                       {label}
@@ -235,7 +262,7 @@ export default function HotelsPage() {
           </Select>
         </div>
 
-        {/* City (sends name_xx) */}
+        {/* City */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">City</label>
           <Select
@@ -271,7 +298,7 @@ export default function HotelsPage() {
           </Select>
         </div>
 
-        {/* Name (free text) */}
+        {/* Name */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Name</label>
           <Input
@@ -281,7 +308,7 @@ export default function HotelsPage() {
           />
         </div>
 
-        {/* Category (Select) — sends category?.name_xx */}
+        {/* Category */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Category</label>
           <Select
@@ -298,7 +325,6 @@ export default function HotelsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All categories</SelectItem>
-
               {!categoryLoading &&
                 !categoryError &&
                 categories
@@ -347,11 +373,10 @@ export default function HotelsPage() {
         <div className="flex items-end">
           <div className="text-sm text-gray-600">
             Page <span className="font-medium">{currentPage}</span>
-            {totalPages ? (
-              <>
-                {" "}
-                of <span className="font-medium">{totalPages}</span>
-              </>
+            {" of "}
+            <span className="font-medium">{totalPages}</span>
+            {typeof total === "number" ? (
+              <span className="ml-2 text-gray-500">({total} total)</span>
             ) : null}
           </div>
         </div>
@@ -372,29 +397,81 @@ export default function HotelsPage() {
           data={hotels}
           onEdit={openEdit}
           onView={openView}
-          onDelete={(id) => deleteHotel.mutateAsync(id).then(() => {})}
+          onDelete={onDelete}
           isLoadingData={isFetching || isLoading}
           isErrorData={isError}
           errorMessage={(error as any)?.message}
         />
       </div>
 
-      {/* Pagination */}
-      <div className="mt-4 flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={!canPrev}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          disabled={!canNext}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </Button>
+      {/* Pagination controls */}
+      <div className="mt-4 flex flex-col md:flex-row md:items-center gap-3 justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => goToPage(1)}
+            disabled={!canPrev || isFetching}
+            title="First"
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={!canPrev || isFetching}
+            title="Previous"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={!canNext || isFetching}
+            title="Next"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => goToPage(totalPages)}
+            disabled={!canNext || isFetching}
+            title="Last"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Go to page */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Go to page</span>
+          <Input
+            className="w-24"
+            type="number"
+            min={1}
+            max={totalPages}
+            value={gotoInput}
+            onChange={(e) => setGotoInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const n = Number(gotoInput);
+                if (Number.isFinite(n)) goToPage(n);
+                setGotoInput("");
+              }
+            }}
+            placeholder={`${currentPage}/${totalPages}`}
+          />
+          <Button
+            variant="outline"
+            onClick={() => {
+              const n = Number(gotoInput);
+              if (Number.isFinite(n)) goToPage(n);
+              setGotoInput("");
+            }}
+            disabled={!gotoInput}
+          >
+            Go
+          </Button>
+        </div>
       </div>
 
       {/* Create/Edit */}
