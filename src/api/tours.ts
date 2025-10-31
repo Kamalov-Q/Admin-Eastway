@@ -23,6 +23,7 @@ export type MActivity = {
     activity_zh?: string;
 };
 
+
 export type Tour = {
     id: number;
     days?: number;
