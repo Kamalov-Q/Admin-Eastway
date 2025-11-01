@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Tour } from "@/api/tours";
 import { useCities } from "@/api/cities";
-import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Eye, Pencil, Trash2 /*, Map */ } from "lucide-react";
 import { useTourCategories } from "@/api/tour-category";
 
 type Props = {
@@ -37,6 +37,7 @@ type Props = {
 };
 
 export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
+  // ---- City name map ----
   const { data: cities = [] } = useCities();
   const cityMap = useMemo(() => {
     const m = new Map<number, { name_en: string }>();
@@ -46,6 +47,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
   const cityName = (id?: number) =>
     typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
 
+  // ---- Category name map (supports categoryId or populated category obj) ----
   const { data: categories = [] } = useTourCategories?.() ?? {
     data: [] as any[],
   };
@@ -63,6 +65,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
       : "-";
   };
 
+  // ---- Delete dialog state ----
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Tour | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -89,6 +92,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
     }
   };
 
+  // ---- Images cell ----
   const ImagesCell = ({ images }: { images?: { url: string }[] }) => {
     const urls = (images ?? []).map((i) => i.url).filter(Boolean);
     if (!urls.length) return <span>-</span>;
@@ -121,12 +125,12 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
         <Table className="w-full">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[80px]">ID</TableHead>
+              <TableHead className="w-20">ID</TableHead>
               <TableHead className="w-[200px]">Name (EN)</TableHead>
               <TableHead className="w-[200px]">Name (RU)</TableHead>
               <TableHead className="w-[120px]">Type</TableHead>
               <TableHead className="w-[200px]">Category</TableHead>
-              <TableHead className="w-[80px]">Days</TableHead>
+              <TableHead className="w-20">Days</TableHead>
               <TableHead className="w-[180px]">Images</TableHead>
               <TableHead className="w-[120px]">Thumbnail</TableHead>
               <TableHead className="w-[200px]">City (EN)</TableHead>
@@ -136,101 +140,125 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
           </TableHeader>
 
           <TableBody>
-            {data.map((tour) => (
-              <TableRow key={tour.id}>
-                <TableCell>{tour.id}</TableCell>
-                <TableCell>
-                  <div
-                    className="truncate max-w-[180px]"
-                    title={tour.title_en || ""}
-                  >
-                    {tour.title_en || "-"}
+            {data.length === 0 ? (
+              <TableRow>
+                {/* Keep this in sync with the number of headers (11) */}
+                <TableCell
+                  colSpan={11}
+                  className="h-32 text-center align-middle"
+                >
+                  <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                    {/* <Map className="h-5 w-5" /> */}
+                    <span className="text-sm">No tours found.</span>
                   </div>
-                </TableCell>
-                <TableCell>
-                  <div
-                    className="truncate max-w-[180px]"
-                    title={tour.title_ru || ""}
-                  >
-                    {tour.title_ru || "-"}
-                  </div>
-                </TableCell>
-                <TableCell className="capitalize">{tour.type || "-"}</TableCell>
-
-                {/* ✅ NEW: Category cell (works with categoryId or category object) */}
-                <TableCell>
-                  <div
-                    className="truncate max-w-[200px]"
-                    title={
-                      categoryName(
-                        (tour as any).categoryId,
-                        (tour as any).category
-                      ) || ""
-                    }
-                  >
-                    {categoryName(
-                      (tour as any).categoryId,
-                      (tour as any).category
-                    )}
-                  </div>
-                </TableCell>
-
-                <TableCell>{tour.days ?? "-"}</TableCell>
-                <TableCell>
-                  <ImagesCell images={tour.images} />
-                </TableCell>
-                <TableCell>
-                  {tour.thumbnail ? (
-                    <img
-                      src={tour.thumbnail}
-                      alt="thumb"
-                      className="w-14 h-10 object-cover rounded"
-                    />
-                  ) : (
-                    "-"
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div
-                    className="truncate max-w-[150px]"
-                    title={cityName(tour.cityId)}
-                  >
-                    {cityName(tour.cityId)}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div
-                    className="truncate max-w-[150px]"
-                    title={tour.address_en || ""}
-                  >
-                    {tour.address_en || "-"}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem onClick={() => onView(tour)}>
-                        <Eye className="h-4 w-4 mr-2" /> Show
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onEdit(tour)}>
-                        <Pencil className="h-4 w-4 mr-2" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-red-600 focus:text-red-600"
-                        onClick={() => askDelete(tour)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              data.map((tour) => (
+                <TableRow key={tour.id}>
+                  <TableCell>{tour.id}</TableCell>
+
+                  <TableCell>
+                    <div
+                      className="truncate max-w-[180px]"
+                      title={tour.title_en || ""}
+                    >
+                      {tour.title_en || "-"}
+                    </div>
+                  </TableCell>
+
+                  <TableCell>
+                    <div
+                      className="truncate max-w-[180px]"
+                      title={tour.title_ru || ""}
+                    >
+                      {tour.title_ru || "-"}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="capitalize">
+                    {tour.type || "-"}
+                  </TableCell>
+
+                  <TableCell>
+                    <div
+                      className="truncate max-w-[200px]"
+                      title={
+                        categoryName(
+                          (tour as any).categoryId,
+                          (tour as any).category
+                        ) || ""
+                      }
+                    >
+                      {categoryName(
+                        (tour as any).categoryId,
+                        (tour as any).category
+                      )}
+                    </div>
+                  </TableCell>
+
+                  <TableCell>{tour.days ?? "-"}</TableCell>
+
+                  <TableCell>
+                    <ImagesCell images={tour.images} />
+                  </TableCell>
+
+                  <TableCell>
+                    {tour.thumbnail ? (
+                      <img
+                        src={tour.thumbnail}
+                        alt="thumb"
+                        className="w-14 h-10 object-cover rounded"
+                      />
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    <div
+                      className="truncate max-w-[150px]"
+                      title={cityName(tour.cityId)}
+                    >
+                      {cityName(tour.cityId)}
+                    </div>
+                  </TableCell>
+
+                  <TableCell>
+                    <div
+                      className="truncate max-w-[150px]"
+                      title={tour.address_en || ""}
+                    >
+                      {tour.address_en || "-"}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => onView(tour)}>
+                          <Eye className="h-4 w-4 mr-2" /> Show
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onEdit(tour)}>
+                          <Pencil className="h-4 w-4 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-600"
+                          onClick={() => askDelete(tour)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
