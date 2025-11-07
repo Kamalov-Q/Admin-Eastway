@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -16,7 +18,7 @@ import type { Hotel } from "@/api/hotels";
 import { LANGS, type Lang } from "@/api/hotels";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
 import { X, Plus, Trash2, Check } from "lucide-react";
-import { useCities } from "@/api/cities";
+import { useCities, type City } from "@/api/cities";
 import {
   Popover,
   PopoverContent,
@@ -31,6 +33,7 @@ import {
 } from "@/components/ui/command";
 import { useHotelCategories } from "@/api/hotel-category";
 
+/* ---------- helpers ---------- */
 const emptyNameObject = () =>
   LANGS.reduce(
     (acc, lang) => ({ ...acc, [`name_${lang}`]: "" }),
@@ -43,7 +46,7 @@ const emptyPlaceObject = () =>
     {} as Record<`place_${Lang}`, string>
   );
 
-// ====== SCHEMA ======
+/* ---------- schema ---------- */
 const schema = z.object({
   ...LANGS.reduce(
     (acc, lang) => ({
@@ -61,7 +64,7 @@ const schema = z.object({
       [`desc_${lang}`]: z.string().optional(),
       [`address_${lang}`]: z.string().optional(),
     }),
-    {} as Record<`desc_${Lang}` | `address_${Lang}`, any>
+    {} as Record<`desc_${Lang}` | `address_${Lang}`, z.ZodOptional<z.ZodString>>
   ),
 
   cityId: z.coerce.number().int().min(1, "City is required"),
@@ -69,7 +72,6 @@ const schema = z.object({
 
   thumbnailFile: z.any().optional(),
 
-  // Distances: multilingual place + numbers
   distances: z
     .array(
       z
@@ -90,7 +92,6 @@ const schema = z.object({
     )
     .min(1, "Add at least one distance"),
 
-  // Multilingual arrays
   infos: z
     .array(
       z.object(
@@ -142,7 +143,6 @@ const schema = z.object({
 
 export type HotelFormValues = z.infer<typeof schema>;
 
-// ====== COMPONENT ======
 type Props = {
   open: boolean;
   onOpenChange: (val: boolean) => void;
@@ -171,14 +171,25 @@ export function HotelFormModal({
     []
   );
 
-  const { data: cities = [], isLoading: citiesLoading } = useCities({
+  /* -------- cities (normalize to City[]) -------- */
+  const { data: citiesRaw, isLoading: citiesLoading } = useCities({
     limit: 20,
   });
+  const cities: City[] = Array.isArray(citiesRaw)
+    ? (citiesRaw as City[])
+    : (citiesRaw as any)?.data ?? [];
+
+  /* -------- categories (normalize to array) -------- */
   const {
-    data: categories = [],
+    data: categoriesRaw,
     isLoading: categoriesLoading,
     isError: categoriesError,
   } = useHotelCategories();
+  const categories: Array<{ id: number; name_en?: string }> = Array.isArray(
+    categoriesRaw
+  )
+    ? (categoriesRaw as any[])
+    : (categoriesRaw as any)?.data ?? [];
 
   const {
     register,
@@ -189,7 +200,7 @@ export function HotelFormModal({
     setValue,
     watch,
   } = useForm<HotelFormValues>({
-    resolver: zodResolver(schema) as any,
+    resolver: zodResolver(schema),
     defaultValues: {
       cityId: 0,
       categoryId: 0,
@@ -214,14 +225,13 @@ export function HotelFormModal({
   const servicesArray = useFieldArray({ control, name: "services" });
   const propertyArray = useFieldArray({ control, name: "property" });
 
-  // Seed initial data
+  /* -------- hydrate form when opening -------- */
   React.useEffect(() => {
     if (!open) return;
 
     if (initialData) {
       const normalizedDistances =
         (initialData.distances || []).map((d: any) => ({
-          // Support old shape with "place"
           place_en: d.place_en ?? d.place ?? "",
           place_ru: d.place_ru ?? "",
           place_zh: d.place_zh ?? "",
@@ -271,6 +281,7 @@ export function HotelFormModal({
     }
   }, [open, initialData, reset]);
 
+  /* -------- file handlers -------- */
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
     const file = e.target.files?.[0];
@@ -313,15 +324,16 @@ export function HotelFormModal({
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  function uniqueByUrl(arr: { url: string }[]) {
+  const uniqueByUrl = (arr: { url: string }[]) => {
     const seen = new Set<string>();
     return arr.filter((i) => {
       if (seen.has(i.url)) return false;
       seen.add(i.url);
       return true;
     });
-  }
+  };
 
+  /* -------- submit -------- */
   const onSubmitHandler = handleSubmit(async (values) => {
     if (isView) {
       onOpenChange(false);
@@ -372,42 +384,39 @@ export function HotelFormModal({
       name_es: string;
     }
 
-    interface Payload extends Partial<Hotel> {
-      cityId: number;
-      categoryId: number;
-      thumbnail?: string;
+    const payload: Partial<Hotel> & {
       images: { url: string }[];
       distances: DistancePayload[];
       infos: MultilingualName[];
       services: MultilingualName[];
       property: MultilingualName[];
-      [key: string]: any;
-    }
-
-    const payload: Payload = {
+    } = {
       cityId: Number(values.cityId),
       categoryId: Number(values.categoryId),
       thumbnail: thumbnailUrl ?? undefined,
       images: mergedImages,
-      // keep all place_* fields
       distances: values.distances.map(
         (d: any): DistancePayload => ({
-          place_en: d.place_en.trim(),
-          place_ru: d.place_ru?.trim() || "",
-          place_zh: d.place_zh?.trim() || "",
-          place_jp: d.place_jp?.trim() || "",
-          place_gr: d.place_gr?.trim() || "",
-          place_es: d.place_es?.trim() || "",
+          place_en: (d.place_en || "").trim(),
+          place_ru: (d.place_ru || "").trim(),
+          place_zh: (d.place_zh || "").trim(),
+          place_jp: (d.place_jp || "").trim(),
+          place_gr: (d.place_gr || "").trim(),
+          place_es: (d.place_es || "").trim(),
           distance_km: Number(d.distance_km) || 0,
           duration: Number(d.duration) || 0,
         })
       ),
       infos: values.infos.map((row: any): MultilingualName => ({ ...row })),
       services: values.services.map(
-        (row: any): MultilingualName => ({ ...row })
+        (row: any): MultilingualName => ({
+          ...row,
+        })
       ),
       property: values.property.map(
-        (row: any): MultilingualName => ({ ...row })
+        (row: any): MultilingualName => ({
+          ...row,
+        })
       ),
       ...LANGS.reduce(
         (acc, lang) => ({
@@ -424,6 +433,7 @@ export function HotelFormModal({
     onOpenChange(false);
   });
 
+  /* -------- UI helpers -------- */
   const Label = ({
     children,
     required,
@@ -439,15 +449,12 @@ export function HotelFormModal({
   const InlineError = ({ msg }: { msg?: string }) =>
     msg ? <p className="text-red-500 text-xs mt-1">{msg}</p> : null;
 
+  const ro = isView ? { readOnly: true, disabled: true } : {};
   const selectedCityId = watch("cityId");
   const selectedCity = cities.find((c) => c.id === selectedCityId);
 
   const selectedCategoryId = watch("categoryId");
-  const selectedCategory = categories.find(
-    (c: any) => c.id === selectedCategoryId
-  );
-
-  const ro = isView ? { readOnly: true, disabled: true } : {};
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -459,6 +466,7 @@ export function HotelFormModal({
         </DialogHeader>
 
         <form onSubmit={onSubmitHandler} className="space-y-6">
+          {/* multilingual core fields */}
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
@@ -527,7 +535,7 @@ export function HotelFormModal({
                     <Command>
                       <CommandInput placeholder="Search city..." />
                       <CommandEmpty>No city found.</CommandEmpty>
-                      <CommandGroup>
+                      <CommandGroup className="max-h-64 overflow-y-auto hover:overflow-y-auto">
                         {cities.map((city) => (
                           <CommandItem
                             key={city.id}
@@ -554,7 +562,7 @@ export function HotelFormModal({
                   </PopoverContent>
                 </Popover>
               )}
-              {!isView && <InlineError msg={(errors as any).cityId?.message} />}
+              {!isView && <InlineError msg={errors.cityId?.message} />}
             </div>
 
             {/* Category */}
@@ -592,8 +600,8 @@ export function HotelFormModal({
                     <Command>
                       <CommandInput placeholder="Search category..." />
                       <CommandEmpty>No category found.</CommandEmpty>
-                      <CommandGroup>
-                        {categories.map((cat: any) => (
+                      <CommandGroup className="max-h-64 overflow-y-auto hover:overflow-y-auto">
+                        {categories.map((cat) => (
                           <CommandItem
                             key={cat.id}
                             value={`${cat.name_en ?? ""}`}
@@ -618,9 +626,7 @@ export function HotelFormModal({
                   </PopoverContent>
                 </Popover>
               )}
-              {!isView && (
-                <InlineError msg={(errors as any).categoryId?.message} />
-              )}
+              {!isView && <InlineError msg={errors.categoryId?.message} />}
             </div>
           </div>
 
@@ -664,7 +670,11 @@ export function HotelFormModal({
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {existingImageUrls.map((url) => (
                 <div key={url} className="relative group">
-                  <img src={url} className="w-full h-32 object-cover rounded" />
+                  <img
+                    src={url}
+                    alt=""
+                    className="w-full h-32 object-cover rounded"
+                  />
                   {!isView && (
                     <button
                       type="button"
@@ -679,7 +689,11 @@ export function HotelFormModal({
               ))}
               {newImagePreviews.map((src, idx) => (
                 <div key={`new-${idx}`} className="relative group">
-                  <img src={src} className="w-full h-32 object-cover rounded" />
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-full h-32 object-cover rounded"
+                  />
                   {!isView && (
                     <button
                       type="button"
@@ -695,7 +709,7 @@ export function HotelFormModal({
             </div>
           </div>
 
-          {/* Distances (multilingual places) */}
+          {/* Distances */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Distances</Label>
@@ -733,7 +747,6 @@ export function HotelFormModal({
                   )}
                 </div>
 
-                {/* Places grid (6 langs) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                   {LANGS.map((lang) => (
                     <div key={lang}>
@@ -747,8 +760,8 @@ export function HotelFormModal({
                       {!isView && (
                         <InlineError
                           msg={
-                            (errors as any)?.distances?.[index]?.[
-                              `place_${lang}`
+                            errors?.distances?.[index]?.[
+                              `place_${lang}` as keyof (typeof errors.distances)[0]
                             ]?.message
                           }
                         />
@@ -757,7 +770,6 @@ export function HotelFormModal({
                   ))}
                 </div>
 
-                {/* Numbers */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <div>
                     <Input
@@ -768,10 +780,7 @@ export function HotelFormModal({
                     />
                     {!isView && (
                       <InlineError
-                        msg={
-                          (errors as any)?.distances?.[index]?.distance_km
-                            ?.message
-                        }
+                        msg={errors?.distances?.[index]?.distance_km?.message}
                       />
                     )}
                   </div>
@@ -784,9 +793,7 @@ export function HotelFormModal({
                     />
                     {!isView && (
                       <InlineError
-                        msg={
-                          (errors as any)?.distances?.[index]?.duration?.message
-                        }
+                        msg={errors?.distances?.[index]?.duration?.message}
                       />
                     )}
                   </div>
@@ -794,7 +801,9 @@ export function HotelFormModal({
               </div>
             ))}
             {!isView && (
-              <InlineError msg={(errors as any).distances?.message} />
+              <InlineError
+                msg={errors.distances?.message as string | undefined}
+              />
             )}
           </section>
 

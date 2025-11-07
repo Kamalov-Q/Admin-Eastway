@@ -7,8 +7,8 @@ export type Review = {
     id: number;
     author: string;
     comment: string;
-    rating: number; // 1..5
-    status: ReviewStatus; // default: "pending"
+    rating: number; 
+    status: ReviewStatus;
     type?: "tour" | "hotel";
     tourId?: number | null;
     hotelId?: number | null;

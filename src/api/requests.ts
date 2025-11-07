@@ -53,7 +53,7 @@ async function fetchRequests(params: RequestsQuery = {}): Promise<Paginated<Requ
         q.hotelId = Number(params.hotelId);
     }
 
-    const { data } = await axiosInstance.get("/request", { params: q });
+    const { data } = await axiosInstance.get("/requests", { params: q });
 
     if (Array.isArray(data)) {
         const page = params.page ?? 1;
@@ -100,7 +100,7 @@ export function useUpdateRequestStatus() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, status }: { id: number; status: RequestStatus }) =>
-            axiosInstance.patch(`/request/${id}/status`, { status }).then((r) => r.data),
+            axiosInstance.patch(`/requests/${id}/status`, { status }).then((r) => r.data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["requests"] }),
     });
 }

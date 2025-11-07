@@ -16,10 +16,59 @@ import { TourCategoryFormModal } from "@/components/forms/tour-category-form";
 import { TourCategoryTable } from "@/components/tables/tour-category-table";
 
 export default function TourCategoriesPage() {
-  // Fetch ALL (no pagination/filters)
-  const { data, isLoading, isFetching, isError, error } = useTourCategories();
-  const items: Category[] = data ?? [];
+  // Pagination state
+  const [page, setPage] = React.useState<number>(1);
+  const [limit, setLimit] = React.useState<number>(10);
 
+  const { data, isLoading, isFetching, isError, error } =
+    useTourCategories?.() ?? useTourCategories();
+
+  // Normalize response
+  const normalize = React.useMemo(() => {
+    // Server shape: { data, total, page, limit, totalPages }
+    if (data && typeof data === "object" && "data" in (data as any)) {
+      const raw = data as any;
+      const items: Category[] = Array.isArray(raw.data) ? raw.data : [];
+      const total: number = Number(raw.total ?? items.length);
+      const currentPage: number = Number(raw.page ?? page);
+      const effectiveLimit: number = Number(raw.limit ?? limit);
+      const totalPages: number =
+        Number(raw.totalPages) ||
+        Math.max(1, Math.ceil(total / (effectiveLimit || 1)));
+      return {
+        items,
+        total,
+        currentPage,
+        effectiveLimit,
+        totalPages,
+        server: true,
+      };
+    }
+
+    // Array shape: client-side paginate
+    const all: Category[] = Array.isArray(data) ? (data as Category[]) : [];
+    const total = all.length;
+    const totalPages = Math.max(1, Math.ceil(total / (limit || 1)));
+    const currentPage = Math.min(Math.max(1, page), totalPages);
+    const start = (currentPage - 1) * limit;
+    const end = start + limit;
+    const items = all.slice(start, end);
+    return {
+      items,
+      total,
+      currentPage,
+      effectiveLimit: limit,
+      totalPages,
+      server: false,
+    };
+  }, [data, page, limit]);
+
+  const { items, total, currentPage, effectiveLimit, totalPages } = normalize;
+
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
+
+  // CRUD hooks
   const create = useCreateTourCategory();
   const update = useUpdateTourCategory();
   const remove = useDeleteTourCategory();
@@ -66,6 +115,20 @@ export default function TourCategoriesPage() {
     setSelected(null);
   };
 
+  const handleDelete = async (id: number) => {
+    await toast.promise(remove.mutateAsync(id), {
+      loading: "Deleting…",
+      success: "Category deleted",
+      error: (e) => (e as any)?.message || "Failed to delete",
+    });
+
+    // If we deleted the last item on this page and there are previous pages, go back a page
+    const remaining = (items?.length ?? 1) - 1;
+    if (remaining <= 0 && currentPage > 1) {
+      setPage((p) => Math.max(1, p - 1));
+    }
+  };
+
   // First-load skeleton
   if (!data && isLoading) {
     return (
@@ -93,11 +156,57 @@ export default function TourCategoriesPage() {
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
 
+  // Range display
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
+  const endIndex = Math.min(total, currentPage * effectiveLimit);
+
   return (
     <div className="p-6">
       <div className="flex justify-between mb-4">
         <h1 className="text-2xl font-bold">Tour Categories</h1>
         <Button onClick={openCreate}>+ Add Category</Button>
+      </div>
+
+      {/* Page + rows controls (top, similar to Tours/Reviews) */}
+      <div className="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          Page <span className="font-medium">{currentPage}</span> of{" "}
+          <span className="font-medium">{totalPages}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Rows</label>
+          <select
+            className="border rounded-md py-2 px-2 text-sm"
+            value={effectiveLimit}
+            onChange={(e) => {
+              setLimit(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="relative rounded-xl border bg-white p-2">
@@ -114,11 +223,42 @@ export default function TourCategoriesPage() {
           data={items}
           onView={openView}
           onEdit={openEdit}
-          onDelete={(id) => remove.mutateAsync(id) as unknown as Promise<void>}
+          onDelete={(id) => handleDelete(id)}
           isLoadingData={isFetching || isLoading}
           isErrorData={isError}
           errorMessage={(error as any)?.message}
         />
+      </div>
+
+      {/* Footer: range + pagination (same pattern as Tours/Reviews) */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-gray-600">
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No categories found</>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={!canPrev || isFetching}
+            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!canNext || isFetching}
+            onClick={() => canNext && setPage((p) => p + 1)}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       <TourCategoryFormModal

@@ -30,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import type { Hotel } from "@/api/hotels";
-import { useCities } from "@/api/cities";
+import { useCities, type City } from "@/api/cities";
 
 type Props = {
   data: Hotel[];
@@ -52,15 +52,26 @@ export function HotelsTable({
   errorMessage,
 }: Props) {
   const {
-    data: cities = [],
+    data: citiesRaw,
     isError: isCitiesError,
     error: citiesError,
     isLoading: isCitiesLoading,
   } = useCities();
 
+  // Normalize cities data to City[]
+  const cities: City[] = useMemo(() => {
+    if (!citiesRaw) return [];
+    if (Array.isArray(citiesRaw)) return citiesRaw as City[];
+    return ((citiesRaw as any)?.data ?? []) as City[];
+  }, [citiesRaw]);
+
   const cityMap = useMemo(() => {
     const m = new Map<number, { name_en: string }>();
-    for (const c of cities) m.set(c.id, { name_en: c.name_en });
+    for (const c of cities) {
+      if (c.id && c.name_en) {
+        m.set(c.id, { name_en: c.name_en });
+      }
+    }
     return m;
   }, [cities]);
 
@@ -96,6 +107,8 @@ export function HotelsTable({
       });
       setDeleteOpen(false);
       setPendingDelete(null);
+    } catch (error) {
+      console.error("Delete error:", error);
     } finally {
       setDeleting(false);
     }
@@ -109,12 +122,18 @@ export function HotelsTable({
       toast.error(errorMessage || "Failed to load hotels.");
       dataErrorShown.current = true;
     }
+    if (!isErrorData) {
+      dataErrorShown.current = false;
+    }
   }, [isErrorData, errorMessage]);
 
   useEffect(() => {
     if (isCitiesError && !citiesErrorShown.current) {
       toast.error((citiesError as any)?.message ?? "Failed to load cities.");
       citiesErrorShown.current = true;
+    }
+    if (!isCitiesError) {
+      citiesErrorShown.current = false;
     }
   }, [isCitiesError, citiesError]);
 
@@ -130,7 +149,7 @@ export function HotelsTable({
       <div className="relative inline-block">
         <img
           src={first}
-          alt="img-0"
+          alt="Hotel image"
           className="w-10 h-8 object-cover rounded"
         />
 
@@ -167,7 +186,7 @@ export function HotelsTable({
         <Skeleton className="h-10 w-14 rounded" />
       </TableCell>
       <TableCell>
-        <Skeleton className="h-5 w-[160px]" />
+        <Skeleton className="h-5 w-160px" />
       </TableCell>
       <TableCell>
         <Skeleton className="h-5 w-[200px]" />
@@ -199,7 +218,7 @@ export function HotelsTable({
         <Table className="w-full">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[80px]">ID</TableHead>
+              <TableHead className="w-80px">ID</TableHead>
               <TableHead className="w-[220px]">Name (EN)</TableHead>
               <TableHead className="w-[220px]">Name (RU)</TableHead>
               <TableHead className="w-[180px]">Images</TableHead>
@@ -250,7 +269,7 @@ export function HotelsTable({
                     {hotel.thumbnail ? (
                       <img
                         src={hotel.thumbnail}
-                        alt="thumb"
+                        alt="Hotel thumbnail"
                         className="w-14 h-10 object-cover rounded"
                       />
                     ) : (

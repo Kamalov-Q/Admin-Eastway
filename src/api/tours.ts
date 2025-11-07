@@ -1,4 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+    useQuery,
+    useMutation,
+    useQueryClient,
+    keepPreviousData,
+} from "@tanstack/react-query";
 import axiosInstance from "./axios";
 
 export const LANGS = ["en", "ru", "gr", "jp", "es", "zh"] as const;
@@ -22,7 +27,6 @@ export type MActivity = {
     activity_es?: string;
     activity_zh?: string;
 };
-
 
 export type Tour = {
     id: number;
@@ -74,7 +78,7 @@ export type ToursQuery = {
     category?: string;
     type?: "private" | "group";
     limit?: number;
-    page?: number;
+    page?: number; // 1-based
 };
 
 export type Paginated<T> = {
@@ -83,8 +87,88 @@ export type Paginated<T> = {
     limit: number;
     totalPages: number;
     data: T[];
+    hasNextPage?: boolean;
+    hasPrevPage?: boolean;
 };
 
+// ---------- helpers ----------
+function clampToPositiveInt(n: number | undefined, fallback: number) {
+    const v = Number.isFinite(n as number) ? Number(n) : fallback;
+    return v > 0 ? Math.floor(v) : fallback;
+}
+
+function normalizeToursResponse(
+    raw: any,
+    params: ToursQuery
+): Paginated<Tour> {
+    // 1) Array<Tour>
+    if (Array.isArray(raw)) {
+        const page = clampToPositiveInt(params.page, 1);
+        const limit = clampToPositiveInt(params.limit, raw.length || 10);
+        const total = raw.length;
+        const totalPages = Math.max(1, Math.ceil(total / Math.max(1, limit)));
+        return {
+            data: raw as Tour[],
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        };
+    }
+
+    // 2) { data: Tour[], meta: {...} }
+    if (raw?.meta && Array.isArray(raw?.data)) {
+        const { total, page, limit, totalPages } = raw.meta;
+        return {
+            data: raw.data as Tour[],
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        };
+    }
+
+    // 3) { data: Tour[], total, page, limit, totalPages }
+    if (Array.isArray(raw?.data)) {
+        const page = clampToPositiveInt(raw.page, params.page ?? 1);
+        const limit = clampToPositiveInt(raw.limit, params.limit ?? 10);
+        const total = clampToPositiveInt(raw.total, raw.data.length);
+        const totalPages =
+            raw.totalPages ?? Math.max(1, Math.ceil(total / Math.max(1, limit)));
+        return {
+            data: raw.data as Tour[],
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        };
+    }
+
+    // fallback
+    const list: Tour[] = raw?.data ?? raw ?? [];
+    const page = clampToPositiveInt(params.page, 1);
+    const limit = clampToPositiveInt(params.limit, list.length || 10);
+    const total = Array.isArray(list) ? list.length : 0;
+    const totalPages = Math.max(1, Math.ceil(total / Math.max(1, limit)));
+
+    return {
+        data: Array.isArray(list) ? list : [],
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+    };
+}
+
+// ---------- API ----------
 async function fetchTours(params: ToursQuery = {}): Promise<Paginated<Tour>> {
     const q: Record<string, string | number> = {};
     if (params.country?.trim()) q.country = params.country.trim();
@@ -96,37 +180,14 @@ async function fetchTours(params: ToursQuery = {}): Promise<Paginated<Tour>> {
     if (typeof params.page === "number") q.page = params.page;
 
     const { data } = await axiosInstance.get("/tours", { params: q });
-
-    if (Array.isArray(data)) {
-        const page = params.page ?? 1;
-        const limit = params.limit ?? (data.length || 10);
-        return { total: data.length, page, limit, totalPages: 1, data };
-    }
-    if (data?.data && Array.isArray(data.data)) {
-        const page = Number(data.page ?? params.page ?? 1);
-        const limit = Number(
-            data.limit ?? params.limit ?? (data.data.length || 10)
-        );
-        const total = Number(data.total ?? data.data.length);
-        const totalPages = Number(
-            data.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1)))
-        );
-        return { total, page, limit, totalPages, data: data.data as Tour[] };
-    }
-    return {
-        total: data?.length ?? 0,
-        page: params.page ?? 1,
-        limit: params.limit ?? (data?.length ?? 10),
-        totalPages: 1,
-        data: (data?.data ?? data ?? []) as Tour[],
-    };
+    return normalizeToursResponse(data, params);
 }
 
 export function useTours(params: ToursQuery = {}) {
-    return useQuery({
+    return useQuery<Paginated<Tour>>({
         queryKey: ["tours", params],
         queryFn: () => fetchTours(params),
-        placeholderData: (prev) => prev,
+        placeholderData: keepPreviousData, // v5-friendly pagination UX
         staleTime: 30_000,
         refetchOnWindowFocus: false,
     });
@@ -136,7 +197,7 @@ export const useCreateTour = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (payload: Partial<Tour>) =>
-            axiosInstance.post("/tours", payload).then((r) => r.data),
+            axiosInstance.post("/tours", payload).then((r) => r.data as Tour),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["tours"] }),
     });
 };
@@ -145,7 +206,7 @@ export const useUpdateTour = () => {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, payload }: { id: number; payload: Partial<Tour> }) =>
-            axiosInstance.patch(`/tours/${id}`, payload).then((r) => r.data),
+            axiosInstance.patch(`/tours/${id}`, payload).then((r) => r.data as Tour),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["tours"] }),
     });
 };

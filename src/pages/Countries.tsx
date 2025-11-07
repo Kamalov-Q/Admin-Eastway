@@ -44,6 +44,7 @@ export default function CountriesPage() {
     isLoading,
     isError,
     error,
+    isFetching, // v5
   } = useCountries({
     name: debouncedSearch || undefined,
     page,
@@ -99,16 +100,23 @@ export default function CountriesPage() {
   };
 
   const countries = countriesPage?.data ?? [];
-  const total = countriesPage?.total ?? countries.length;
+  const total = countriesPage?.total ?? 0;
   const totalPages = countriesPage?.totalPages ?? 1;
   const currentPage = countriesPage?.page ?? page;
 
-  const canPrev = currentPage > 1;
-  const canNext = currentPage < totalPages;
+  const canPrev = countriesPage ? !!countriesPage.hasPrevPage : currentPage > 1;
+  const canNext = countriesPage
+    ? !!countriesPage.hasNextPage
+    : currentPage < totalPages;
 
+  // Reset to first page when search changes
   React.useEffect(() => {
     setPage(1);
   }, [debouncedSearch]);
+
+  // Display range helper
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
 
   if (isLoading) return <div className="p-6">Loading countries...</div>;
   if (isError)
@@ -117,7 +125,7 @@ export default function CountriesPage() {
     );
 
   return (
-    <div className="p-6 bg-gradient-to-b from-gray-50 via-white to-gray-100 min-h-screen">
+    <div className="p-6 bg-linear-to-b from-gray-50 via-white to-gray-100 min-h-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold">Countries Management</h1>
@@ -144,12 +152,12 @@ export default function CountriesPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Rows per page:</label>
           <select
             className="border rounded-md py-1.5 px-2 text-sm"
             value={limit}
             onChange={(e) => {
-              setLimit(Number(e.target.value));
+              const next = Number(e.target.value);
+              setLimit(next);
               setPage(1);
             }}
           >
@@ -159,9 +167,6 @@ export default function CountriesPage() {
               </option>
             ))}
           </select>
-          <div className="text-sm text-gray-600 ml-3">
-            Total: <span className="font-medium">{total}</span>
-          </div>
         </div>
       </div>
 
@@ -197,29 +202,46 @@ export default function CountriesPage() {
               .then(() => {})
           }
         />
+        {isFetching && (
+          <div className="text-xs text-gray-500 mt-2">Refreshing…</div>
+        )}
       </div>
 
       {/* Pagination */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-gray-600">
-          Page <span className="font-medium">{currentPage}</span> of{" "}
-          <span className="font-medium">{totalPages}</span>
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No countries found</>
+          )}
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            disabled={!canPrev}
-            onClick={() => canPrev && setPage((p) => p - 1)}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canNext}
-            onClick={() => canNext && setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

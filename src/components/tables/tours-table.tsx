@@ -25,9 +25,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Tour } from "@/api/tours";
-import { useCities } from "@/api/cities";
-import { MoreHorizontal, Eye, Pencil, Trash2 /*, Map */ } from "lucide-react";
-import { useTourCategories } from "@/api/tour-category";
+import { useCities, type City } from "@/api/cities";
+import { MoreHorizontal, Eye, Pencil, Trash2 } from "lucide-react";
+import { useTourCategories, type Category } from "@/api/tour-category";
 
 type Props = {
   data: Tour[];
@@ -37,27 +37,33 @@ type Props = {
 };
 
 export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
-  // ---- City name map ----
-  const { data: cities = [] } = useCities();
+  // ---- City name map (paginated hook) ----
+  const { data: citiesPage } = useCities({ page: 1, limit: 20 });
+  const cities: City[] = citiesPage?.data ?? [];
+
   const cityMap = useMemo(() => {
     const m = new Map<number, { name_en: string }>();
     for (const c of cities) m.set(c.id, { name_en: c.name_en });
     return m;
   }, [cities]);
+
   const cityName = (id?: number) =>
     typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
 
-  // ---- Category name map (supports categoryId or populated category obj) ----
-  const { data: categories = [] } = useTourCategories?.() ?? {
-    data: [] as any[],
-  };
+  // ---- Category name map (supports array or {data}) ----
+  const { data: catRaw } = useTourCategories();
+  const categories: Category[] = Array.isArray(catRaw)
+    ? (catRaw as Category[])
+    : (catRaw as any)?.data ?? [];
+
   const categoryMap = useMemo(() => {
     const m = new Map<number, { name_en?: string }>();
-    for (const c of categories as Array<{ id: number; name_en?: string }>) {
-      m.set(c.id, { name_en: c.name_en });
+    for (const c of categories) {
+      m.set(c.id as number, { name_en: (c as any).name_en });
     }
     return m;
   }, [categories]);
+
   const categoryName = (id?: number, fallbackObj?: any) => {
     if (fallbackObj?.name_en) return fallbackObj.name_en;
     return typeof id === "number"
@@ -142,13 +148,11 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                {/* Keep this in sync with the number of headers (11) */}
                 <TableCell
                   colSpan={11}
                   className="h-32 text-center align-middle"
                 >
                   <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
-                    {/* <Map className="h-5 w-5" /> */}
                     <span className="text-sm">No tours found.</span>
                   </div>
                 </TableCell>
@@ -185,13 +189,15 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                       className="truncate max-w-[200px]"
                       title={
                         categoryName(
-                          (tour as any).categoryId,
+                          (tour as any).categoryId ??
+                            (tour as any).tourCategoryId,
                           (tour as any).category
                         ) || ""
                       }
                     >
                       {categoryName(
-                        (tour as any).categoryId,
+                        (tour as any).categoryId ??
+                          (tour as any).tourCategoryId,
                         (tour as any).category
                       )}
                     </div>

@@ -57,7 +57,8 @@ export default function ToursPage() {
   const dCategory = useDebounced(category);
   const dType = useDebounced(type);
 
-  const countriesQuery = useCountries();
+  // Countries
+  const countriesQuery = useCountries({ page: 1, limit: 20 });
   const countriesRaw = countriesQuery.data as any;
   const countries: Country[] = Array.isArray(countriesRaw)
     ? countriesRaw
@@ -65,10 +66,12 @@ export default function ToursPage() {
 
   const citiesQuery = useCities({
     country: dCountry || undefined,
-    limit: 1000,
+    limit: 20,
+    page: 1,
   });
-  const cities: City[] = citiesQuery.data ?? [];
+  const cities: City[] = citiesQuery.data?.data ?? [];
 
+  // Categories
   const tourCatsQuery = useTourCategories();
   const catsRaw = tourCatsQuery.data as any;
   const tourCategories: Category[] = Array.isArray(catsRaw)
@@ -154,21 +157,21 @@ export default function ToursPage() {
     );
 
   const tours = pageData?.data ?? [];
-  const totalPages = pageData?.totalPages ?? undefined;
+  const total = pageData?.total ?? 0;
+  const totalPages = pageData?.totalPages ?? 1;
   const currentPage = pageData?.page ?? page;
 
-  // ✅ safer Prev/Next logic when totalPages not provided
-  const canPrev = currentPage > 1;
-  const canNext =
-    typeof totalPages === "number"
-      ? currentPage < totalPages
-      : tours.length >= limit; // if fewer than limit, likely last page
+  const canPrev = pageData ? !!pageData.hasPrevPage : currentPage > 1;
+  const canNext = pageData ? !!pageData.hasNextPage : currentPage < totalPages;
+
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
 
   const countryLabel = (c: Country) =>
     (c as any).name_en ||
     (c as any).name_ru ||
     (c as any).name_es ||
-    String(c.id);
+    String((c as any).id);
 
   const catLabel = (c: Category) =>
     c.name_en ||
@@ -211,7 +214,7 @@ export default function ToursPage() {
               {countries.map((c) => {
                 const label = countryLabel(c);
                 return (
-                  <SelectItem key={c.id} value={label}>
+                  <SelectItem key={(c as any).id ?? label} value={label}>
                     {label}
                   </SelectItem>
                 );
@@ -237,7 +240,7 @@ export default function ToursPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All cities</SelectItem>
-              {(cities ?? []).map((ct) => (
+              {cities.map((ct) => (
                 <SelectItem key={ct.id} value={ct.name_en}>
                   {ct.name_en}
                 </SelectItem>
@@ -322,13 +325,8 @@ export default function ToursPage() {
         {/* Page display */}
         <div className="flex items-end">
           <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span>
-            {typeof totalPages === "number" ? (
-              <>
-                {" "}
-                of <span className="font-medium">{totalPages}</span>
-              </>
-            ) : null}
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
           </div>
         </div>
       </div>
@@ -352,22 +350,35 @@ export default function ToursPage() {
         />
       </div>
 
-      {/* Pagination */}
-      <div className="mt-4 flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={!canPrev}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          disabled={!canNext}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </Button>
+      {/* Footer: range + pagination */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-gray-600">
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No tours found</>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={!canPrev || isFetching}
+            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!canNext || isFetching}
+            onClick={() => canNext && setPage((p) => p + 1)}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       {/* Create/Edit */}

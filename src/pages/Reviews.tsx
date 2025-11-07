@@ -83,6 +83,7 @@ export default function ReviewsPage() {
       toast.error((error as any)?.message ?? "Failed to load reviews.");
       errorOnce.current = true;
     }
+    if (!isError) errorOnce.current = false;
   }, [isError, error]);
 
   const updateReview = useUpdateReview();
@@ -162,9 +163,26 @@ export default function ReviewsPage() {
     );
   }
 
+  // Pagination info (match Tours UI & be resilient to different API shapes)
   const reviews = pageData?.data ?? [];
-  const totalPages = pageData?.totalPages ?? 1;
+  const total = pageData?.total ?? reviews.length ?? 0;
+  const totalPages =
+    pageData?.totalPages ??
+    Math.max(1, Math.ceil(total / ((pageData?.limit ?? limit) || 1)));
   const currentPage = pageData?.page ?? page;
+  const effectiveLimit = pageData?.limit ?? limit;
+
+  const canPrev =
+    (pageData as any)?.hasPrevPage !== undefined
+      ? !!(pageData as any).hasPrevPage
+      : currentPage > 1;
+  const canNext =
+    (pageData as any)?.hasNextPage !== undefined
+      ? !!(pageData as any).hasNextPage
+      : currentPage < totalPages;
+
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
+  const endIndex = Math.min(total, currentPage * effectiveLimit);
 
   return (
     <div className="p-6">
@@ -172,8 +190,8 @@ export default function ReviewsPage() {
         <h1 className="text-2xl font-bold">Reviews Management</h1>
       </div>
 
-      {/* Toolbar */}
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+      {/* Toolbar (with page indicator like Tours) */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-7 gap-3">
         {/* Type */}
         <div className="flex flex-col gap-1 md:col-span-2">
           <label className="text-sm text-gray-600">Type</label>
@@ -205,12 +223,12 @@ export default function ReviewsPage() {
           </Select>
         </div>
 
-        {/* Rows (stick to the end/right on md+) */}
-        <div className="flex items-center gap-2 md:col-start-6 md:justify-self-end self-end">
-          <label className="text-sm text-gray-600">Rows per page:</label>
+        {/* Rows */}
+        <div className="flex items-end gap-2 md:col-start-6 md:justify-self-end">
+          <label className="text-sm text-gray-600">Rows</label>
           <select
-            className="border rounded-md py-1.5 px-2 text-sm"
-            value={limit}
+            className="border rounded-md py-2 px-2 text-sm"
+            value={effectiveLimit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
               setPage(1);
@@ -222,6 +240,14 @@ export default function ReviewsPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Page display */}
+        <div className="flex items-end">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
         </div>
       </div>
 
@@ -246,22 +272,35 @@ export default function ReviewsPage() {
         />
       </div>
 
-      {/* Page controls */}
-      <div className="mt-4 flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={currentPage <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          Previous
-        </Button>
-        <Button
-          variant="outline"
-          disabled={currentPage >= totalPages}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </Button>
+      {/* Footer: range + pagination (same as Tours) */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-gray-600">
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No reviews found</>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={!canPrev || isFetching}
+            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!canNext || isFetching}
+            onClick={() => canNext && setPage((p) => p + 1)}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       {/* View modal */}
@@ -271,6 +310,7 @@ export default function ReviewsPage() {
         review={viewReview}
       />
 
+      {/* Status modal */}
       <ReviewFormModal
         open={statusOpen}
         onOpenChange={(v) => {

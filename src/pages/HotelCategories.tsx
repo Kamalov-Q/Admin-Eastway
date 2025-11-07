@@ -16,10 +16,65 @@ import { HotelCategoryFormModal } from "@/components/forms/hotel-category-form";
 import { HotelCategoryTable } from "@/components/tables/hotel-category-table";
 
 export default function HotelCategoriesPage() {
-  // Fetch ALL (no pagination/filters)
-  const { data, isLoading, isFetching, isError, error } = useHotelCategories();
-  const items: Category[] = data ?? [];
+  // Pagination state (client state regardless of server/client pagination)
+  const [page, setPage] = React.useState<number>(1);
+  const [limit, setLimit] = React.useState<number>(10);
 
+  // If your hook supports params, pass them; otherwise ignore.
+  // We call the param version if available, else fall back.
+  const { data, isLoading, isFetching, isError, error } =
+    useHotelCategories?.() ??
+    // @ts-ignore – in case the hook has no params version
+    useHotelCategories();
+
+  // Normalize response shape:
+  // - Server shape: { data, total, page, limit, totalPages }
+  // - Array shape: Category[]
+  const normalize = React.useMemo(() => {
+    // Server paginated
+    if (data && typeof data === "object" && "data" in (data as any)) {
+      const raw = data as any;
+      const items: Category[] = Array.isArray(raw.data) ? raw.data : [];
+      const total: number = Number(raw.total ?? items.length);
+      const currentPage: number = Number(raw.page ?? page);
+      const effectiveLimit: number = Number(raw.limit ?? limit);
+      const totalPages: number =
+        Number(raw.totalPages) ||
+        Math.max(1, Math.ceil(total / (effectiveLimit || 1)));
+      return {
+        items,
+        total,
+        currentPage,
+        effectiveLimit,
+        totalPages,
+        server: true as const,
+      };
+    }
+
+    // Client-side pagination
+    const all: Category[] = Array.isArray(data) ? (data as Category[]) : [];
+    const total = all.length;
+    const totalPages = Math.max(1, Math.ceil(total / (limit || 1)));
+    const currentPage = Math.min(Math.max(1, page), totalPages);
+    const start = (currentPage - 1) * limit;
+    const end = start + limit;
+    const items = all.slice(start, end);
+    return {
+      items,
+      total,
+      currentPage,
+      effectiveLimit: limit,
+      totalPages,
+      server: false as const,
+    };
+  }, [data, page, limit]);
+
+  const { items, total, currentPage, effectiveLimit, totalPages } = normalize;
+
+  const canPrev = currentPage > 1;
+  const canNext = currentPage < totalPages;
+
+  // CRUD hooks
   const create = useCreateHotelCategory();
   const update = useUpdateHotelCategory();
   const remove = useDeleteHotelCategory();
@@ -66,6 +121,20 @@ export default function HotelCategoriesPage() {
     setSelected(null);
   };
 
+  const handleDelete = async (id: number) => {
+    await toast.promise(remove.mutateAsync(id), {
+      loading: "Deleting…",
+      success: "Category deleted",
+      error: (e) => (e as any)?.message || "Failed to delete",
+    });
+
+    // If last item on the current page was removed, step back a page (when possible)
+    const remaining = (items?.length ?? 1) - 1;
+    if (remaining <= 0 && currentPage > 1) {
+      setPage((p) => Math.max(1, p - 1));
+    }
+  };
+
   // First-load skeleton
   if (!data && isLoading) {
     return (
@@ -93,6 +162,10 @@ export default function HotelCategoriesPage() {
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
 
+  // Range display
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
+  const endIndex = Math.min(total, currentPage * effectiveLimit);
+
   return (
     <div className="p-6">
       <div className="flex justify-between mb-4">
@@ -100,6 +173,50 @@ export default function HotelCategoriesPage() {
         <Button onClick={openCreate}>+ Add Category</Button>
       </div>
 
+      {/* Top controls (page + rows + prev/next) */}
+      <div className="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          Page <span className="font-medium">{currentPage}</span> of{" "}
+          <span className="font-medium">{totalPages}</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Rows</label>
+          <select
+            className="border rounded-md py-2 px-2 text-sm"
+            value={effectiveLimit}
+            onChange={(e) => {
+              setLimit(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            {[5, 10, 20, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Table + overlay */}
       <div className="relative rounded-xl border bg-white p-2">
         {isFetching && items.length > 0 && (
           <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl z-10">
@@ -114,11 +231,42 @@ export default function HotelCategoriesPage() {
           data={items}
           onView={openView}
           onEdit={openEdit}
-          onDelete={(id) => remove.mutateAsync(id) as unknown as Promise<void>}
+          onDelete={(id) => handleDelete(id)}
           isLoadingData={isFetching || isLoading}
           isErrorData={isError}
           errorMessage={(error as any)?.message}
         />
+      </div>
+
+      {/* Footer: range + pagination */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-gray-600">
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No categories found</>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={!canPrev || isFetching}
+            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!canNext || isFetching}
+            onClick={() => canNext && setPage((p) => p + 1)}
+          >
+            Next
+          </Button>
+        </div>
       </div>
 
       <HotelCategoryFormModal

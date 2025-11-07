@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +36,6 @@ function useDebounced<T>(value: T, delay = 400) {
 }
 
 const ALL_COUNTRIES = "__ALL__";
-
 const PREFERRED_NAME_KEY = "name_en" as keyof Country | "name_en";
 
 export default function CitiesPage() {
@@ -51,13 +52,12 @@ export default function CitiesPage() {
   const [countryFilter, setCountryFilter] = useState("");
 
   const {
-    data: countries,
+    data: countriesPage,
     isLoading: countryLoading,
     isError: countryError,
-  } = useCountries();
-
+  } = useCountries({ page: 1, limit: 20 });
   const {
-    data: cities,
+    data: citiesPage,
     isLoading,
     isFetching,
     isError,
@@ -66,17 +66,15 @@ export default function CitiesPage() {
     country: countryFilter ?? "",
     page,
     limit,
-    name: debouncedSearch,
+    name: debouncedSearch || undefined,
   });
 
   const createCity = useCreateCity();
   const updateCity = useUpdateCity();
   const deleteCity = useDeleteCity();
 
-  /** Reset to first page when search or country changes */
   useEffect(() => setPage(1), [debouncedSearch, countryFilter]);
 
-  /** One-time toast for errors */
   const errorNotifiedRef = useRef(false);
   useEffect(() => {
     if (errorNotifiedRef.current) return;
@@ -140,17 +138,14 @@ export default function CitiesPage() {
   };
 
   // ------------------ Country helpers ------------------
-
-  /** Normalize countries into a plain array (supports both Country[] and { data: Country[] }) */
   const countriesArray: Country[] = useMemo(() => {
-    if (!countries) return [];
-    return Array.isArray(countries) ? countries : (countries as any).data ?? [];
-  }, [countries]);
+    if (!countriesPage) return [];
+    return (countriesPage as any).data ?? [];
+  }, [countriesPage]);
 
-  /** Choose the localized name string to send to the API (country?.name_xx) */
   const countryNameForQuery = (c: Country) => {
     const keys: (keyof Country | string)[] = [
-      PREFERRED_NAME_KEY, // primary choice, e.g., name_en
+      PREFERRED_NAME_KEY,
       "name_ru",
       "name_es",
       "name_gr",
@@ -164,7 +159,6 @@ export default function CitiesPage() {
     return null;
   };
 
-  /** Friendly label to display in the Select list */
   const countryLabel = (c: Country, fallback: string) =>
     c.name_en ??
     c.name_ru ??
@@ -184,7 +178,6 @@ export default function CitiesPage() {
         const idish =
           (c as any).id ?? (c as any).code ?? (c as any).iso2 ?? value;
         const key = `${String(idish)}__${value}`;
-
         const label = countryLabel(c, value);
         return { key, value, label };
       })
@@ -205,8 +198,7 @@ export default function CitiesPage() {
   }, [countriesArray]);
 
   // ------------------ Loading skeleton ------------------
-
-  if (!cities && isLoading) {
+  if (!citiesPage && isLoading) {
     return (
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
@@ -244,15 +236,27 @@ export default function CitiesPage() {
   }
 
   // ------------------ Error boundary ------------------
-
   if (isError) {
     return (
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
   }
 
-  // ------------------ UI ------------------
+  // ------------------ Pagination derived values ------------------
+  const rows = citiesPage?.data ?? [];
+  const total = citiesPage?.total ?? 0;
+  const totalPages = citiesPage?.totalPages ?? 1;
+  const currentPage = citiesPage?.page ?? page;
 
+  const canPrev = citiesPage ? !!citiesPage.hasPrevPage : currentPage > 1;
+  const canNext = citiesPage
+    ? !!citiesPage.hasNextPage
+    : currentPage < totalPages;
+
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
+
+  // ------------------ UI ------------------
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -289,7 +293,6 @@ export default function CitiesPage() {
             <SelectContent>
               <SelectItem value={ALL_COUNTRIES}>All countries</SelectItem>
 
-              {/* Error / Empty states */}
               {countryError && (
                 <SelectItem value="__ERROR__" disabled>
                   Failed to load countries
@@ -313,7 +316,6 @@ export default function CitiesPage() {
         )}
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Rows per page:</label>
           <select
             className="border rounded-md py-1.5 px-2 text-sm"
             value={limit}
@@ -332,7 +334,7 @@ export default function CitiesPage() {
       </div>
 
       <div className="relative border rounded-lg p-2 bg-white">
-        {isFetching && (cities?.length ?? 0) > 0 && (
+        {isFetching && rows.length > 0 && (
           <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg z-10">
             <div className="flex items-center gap-2 text-sm text-gray-700">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -342,24 +344,49 @@ export default function CitiesPage() {
         )}
 
         <CitiesTable
-          data={cities || []}
+          data={rows}
           onView={openView}
           onEdit={openEdit}
           onDelete={handleDelete}
         />
       </div>
 
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          Previous
-        </Button>
-        <Button variant="outline" onClick={() => setPage((p) => p + 1)}>
-          Next
-        </Button>
+      {/* Footer: range + pagination */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No cities found</>
+          )}
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
       <CityFormModal

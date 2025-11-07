@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import type { Hotel } from "@/api/hotels";
 import {
@@ -15,13 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { HotelsTable } from "@/components/tables/hotels-table";
 import { HotelFormModal } from "@/components/forms/hotel-form";
-import {
-  Loader2,
-  ChevronsLeft,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsRight,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   Select,
   SelectTrigger,
@@ -55,13 +51,23 @@ function localized<T extends Record<string, any>>(
 }
 
 export default function HotelsPage() {
+  // filters
   const [country, setCountry] = React.useState<string>("");
   const [city, setCity] = React.useState<string>("");
   const [name, setName] = React.useState<string>("");
   const [category, setCategory] = React.useState<string>("");
+
+  // table pagination
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
-  const [gotoInput, setGotoInput] = React.useState<string>("");
+
+  // dropdown pagination (cities from API)
+  const [cityPage, setCityPage] = React.useState<number>(1);
+  const [cityPageSize] = React.useState<number>(20);
+
+  // dropdown pagination (categories — client chunking)
+  const [catPage, setCatPage] = React.useState<number>(1);
+  const catPageSize = 20;
 
   const dCountry = useDebounced(country);
   const dCity = useDebounced(city);
@@ -75,26 +81,67 @@ export default function HotelsPage() {
     ? countriesRaw
     : countriesRaw?.data ?? [];
 
-  // -------- Cities (filtered by selected country) ----------
+  // -------- Cities (server-paginated & filtered by selected country) ----------
   const citiesQuery = useCities({
     country: dCountry || undefined,
-    limit: 1000,
+    page: cityPage,
+    limit: cityPageSize,
   });
-  const cities: City[] = citiesQuery.data ?? [];
+  const citiesResp: any = citiesQuery.data;
+  const cities: City[] = Array.isArray(citiesResp)
+    ? (citiesResp as City[])
+    : citiesResp?.data ?? [];
+  const citiesTotal: number =
+    typeof citiesResp?.total === "number"
+      ? citiesResp.total
+      : citiesResp?.data?.length ?? 0;
+  const citiesTotalPages =
+    typeof citiesResp?.totalPages === "number"
+      ? citiesResp.totalPages
+      : Math.max(1, Math.ceil(citiesTotal / (cityPageSize || 1)));
 
-  // -------- Categories ----------
+  // -------- Categories (not server-paginated -> chunk client-side) ----------
   const {
     data: categoriesRaw,
     isLoading: categoryLoading,
     isError: categoryError,
   } = useHotelCategories();
-  const categories: any[] = React.useMemo(() => {
+
+  const categoriesAll: any[] = React.useMemo(() => {
     if (!categoriesRaw) return [];
     return Array.isArray(categoriesRaw)
       ? categoriesRaw
       : (categoriesRaw as any).data ?? [];
   }, [categoriesRaw]);
 
+  const sortedCategories = React.useMemo(
+    () =>
+      categoriesAll
+        .slice()
+        .sort((a, b) =>
+          (
+            localized(a, ["name_en", "name_ru", "name_es"]) ?? String(a?.id)
+          ).localeCompare(
+            localized(b, ["name_en", "name_ru", "name_es"]) ?? String(b?.id),
+            undefined,
+            { sensitivity: "base" }
+          )
+        ),
+    [categoriesAll]
+  );
+
+  const catTotal = sortedCategories.length;
+  const catTotalPages = Math.max(1, Math.ceil(catTotal / catPageSize));
+  const catSliceStart = (catPage - 1) * catPageSize;
+  const catSliceEnd = catSliceStart + catPageSize;
+  const categories = sortedCategories.slice(catSliceStart, catSliceEnd);
+
+  // Reset dropdown pages when country filter changes
+  React.useEffect(() => {
+    setCityPage(1);
+  }, [dCountry]);
+
+  // -------- Hotels page data ----------
   const params = React.useMemo<HotelsQuery>(
     () => ({
       country: dCountry || undefined,
@@ -170,30 +217,40 @@ export default function HotelsPage() {
     setFormOpen(false);
   };
 
-  // ---------- Pagination helpers ----------
+  // ---------- Table pagination & range ----------
+  const hotels = pageData?.data ?? [];
   const total = pageData?.total ?? 0;
-  const totalPages = Math.max(1, pageData?.totalPages ?? 1);
-  const currentPage = Math.min(Math.max(1, pageData?.page ?? page), totalPages);
+  const totalPages = pageData?.totalPages ?? 1;
+  const currentPage = pageData?.page ?? page;
 
-  React.useEffect(() => {
-    if (!isLoading && !isFetching && currentPage !== page) {
-      setPage(currentPage);
-    }
-  }, [currentPage, isLoading, isFetching]);
+  const canPrev = pageData
+    ? !!(pageData as any).hasPrevPage || currentPage > 1
+    : currentPage > 1;
+  const canNext = pageData
+    ? !!(pageData as any).hasNextPage || currentPage < totalPages
+    : currentPage < totalPages;
 
-  const canPrev = currentPage > 1;
-  const canNext = currentPage < totalPages;
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
 
-  const goToPage = (p: number) => {
-    const next = Math.min(Math.max(1, p), totalPages);
-    setPage(next);
+  // Prevent Select from closing when pressing dropdown pagination buttons
+  const keepOpenMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
+
+  const countryLabel = (c: Country) =>
+    localized(c, ["name_en", "name_ru", "name_es"]) ?? String((c as any).id);
+  const cityLabel = (ct: City) =>
+    localized(ct, ["name_en", "name_ru", "name_es"]) ?? String((ct as any).id);
+  const categoryLabel = (cat: any) =>
+    localized(cat, ["name_en", "name_ru", "name_es"]) ??
+    String((cat as any).id);
 
   const onDelete = async (id: number) => {
     await deleteHotel.mutateAsync(id);
-    // If we just deleted the last item on the page and there are previous pages, go back one page
-    const remaining = (pageData?.data?.length ?? 1) - 1;
-    if (remaining <= 0 && page > 1) {
+    const remaining = (hotels?.length ?? 1) - 1;
+    if (remaining <= 0 && currentPage > 1) {
       setPage((p) => Math.max(1, p - 1));
     }
   };
@@ -204,16 +261,6 @@ export default function HotelsPage() {
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
 
-  const hotels = pageData?.data ?? [];
-
-  const countryLabel = (c: Country) =>
-    localized(c, ["name_en", "name_ru", "name_es"]) ?? String((c as any).id);
-  const cityLabel = (ct: City) =>
-    localized(ct, ["name_en", "name_ru", "name_es"]) ?? String((ct as any).id);
-  const categoryLabel = (cat: any) =>
-    localized(cat, ["name_en", "name_ru", "name_es"]) ??
-    String((cat as any).id);
-
   return (
     <div className="p-6">
       <div className="flex justify-between mb-4">
@@ -221,8 +268,8 @@ export default function HotelsPage() {
         <Button onClick={openAdd}>+ Add Hotel</Button>
       </div>
 
-      {/* Toolbar */}
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+      {/* Toolbar (with page indicator like Tours) */}
+      <div className="mb-4 grid grid-cols-1 md:grid-cols-7 gap-3">
         {/* Country */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Country</label>
@@ -232,16 +279,18 @@ export default function HotelsPage() {
               if (v === ALL) {
                 setCountry("");
                 setCity("");
+                setCityPage(1);
               } else {
                 setCountry(v);
                 setCity("");
+                setCityPage(1);
               }
             }}
           >
             <SelectTrigger>
               <SelectValue placeholder="All countries" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-64 overflow-y-auto hover:overflow-y-auto">
               <SelectItem value={ALL}>All countries</SelectItem>
               {countries
                 .slice()
@@ -253,7 +302,7 @@ export default function HotelsPage() {
                 .map((c) => {
                   const label = countryLabel(c);
                   return (
-                    <SelectItem key={c.id} value={label}>
+                    <SelectItem key={(c as any).id ?? label} value={label}>
                       {label}
                     </SelectItem>
                   );
@@ -262,7 +311,7 @@ export default function HotelsPage() {
           </Select>
         </div>
 
-        {/* City */}
+        {/* City (server-paginated + scroll) */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">City</label>
           <Select
@@ -277,8 +326,10 @@ export default function HotelsPage() {
                 }
               />
             </SelectTrigger>
-            <SelectContent>
+
+            <SelectContent className="max-h-64 overflow-y-auto hover:overflow-y-auto">
               <SelectItem value={ALL}>All cities</SelectItem>
+
               {cities
                 .slice()
                 .sort((a, b) =>
@@ -294,6 +345,39 @@ export default function HotelsPage() {
                     </SelectItem>
                   );
                 })}
+
+              {/* sticky footer for pagination */}
+              <div
+                className="sticky bottom-0 mt-1 bg-white border-t flex items-center justify-between px-2 py-1"
+                onMouseDown={keepOpenMouseDown}
+              >
+                <span className="text-xs text-gray-600">
+                  {cityPage}/{citiesTotalPages || 1}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCityPage((p) => Math.max(1, p - 1))}
+                    disabled={citiesQuery.isLoading || cityPage <= 1}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setCityPage((p) => Math.min(citiesTotalPages || 1, p + 1))
+                    }
+                    disabled={
+                      citiesQuery.isLoading ||
+                      (citiesTotalPages ? cityPage >= citiesTotalPages : true)
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </SelectContent>
           </Select>
         </div>
@@ -308,7 +392,7 @@ export default function HotelsPage() {
           />
         </div>
 
-        {/* Category */}
+        {/* Category (client-chunked + scroll) */}
         <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Category</label>
           <Select
@@ -323,29 +407,50 @@ export default function HotelsPage() {
                 }
               />
             </SelectTrigger>
-            <SelectContent>
+
+            <SelectContent className="max-h-64 overflow-y-auto hover:overflow-y-auto">
               <SelectItem value={ALL}>All categories</SelectItem>
+
               {!categoryLoading &&
                 !categoryError &&
-                categories
-                  .slice()
-                  .sort((a, b) =>
-                    categoryLabel(a).localeCompare(
-                      categoryLabel(b),
-                      undefined,
-                      {
-                        sensitivity: "base",
-                      }
-                    )
-                  )
-                  .map((cat) => {
-                    const label = categoryLabel(cat);
-                    return (
-                      <SelectItem key={(cat as any).id ?? label} value={label}>
-                        {label}
-                      </SelectItem>
-                    );
-                  })}
+                categories.map((cat) => {
+                  const label = categoryLabel(cat);
+                  return (
+                    <SelectItem key={(cat as any).id ?? label} value={label}>
+                      {label}
+                    </SelectItem>
+                  );
+                })}
+
+              {/* sticky footer for client-side pagination */}
+              <div
+                className="sticky bottom-0 mt-1 bg-white border-t flex items-center justify-between px-2 py-1"
+                onMouseDown={keepOpenMouseDown}
+              >
+                <span className="text-xs text-gray-600">
+                  {catPage}/{catTotalPages}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCatPage((p) => Math.max(1, p - 1))}
+                    disabled={catPage <= 1}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setCatPage((p) => Math.min(catTotalPages, p + 1))
+                    }
+                    disabled={catPage >= catTotalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
             </SelectContent>
           </Select>
         </div>
@@ -369,15 +474,11 @@ export default function HotelsPage() {
           </select>
         </div>
 
-        {/* Page display */}
+        {/* Page display (like Tours) */}
         <div className="flex items-end">
           <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span>
-            {" of "}
+            Page <span className="font-medium">{currentPage}</span> of{" "}
             <span className="font-medium">{totalPages}</span>
-            {typeof total === "number" ? (
-              <span className="ml-2 text-gray-500">({total} total)</span>
-            ) : null}
           </div>
         </div>
       </div>
@@ -404,72 +505,33 @@ export default function HotelsPage() {
         />
       </div>
 
-      {/* Pagination controls */}
-      <div className="mt-4 flex flex-col md:flex-row md:items-center gap-3 justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => goToPage(1)}
-            disabled={!canPrev || isFetching}
-            title="First"
-          >
-            <ChevronsLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={!canPrev || isFetching}
-            title="Previous"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={!canNext || isFetching}
-            title="Next"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => goToPage(totalPages)}
-            disabled={!canNext || isFetching}
-            title="Last"
-          >
-            <ChevronsRight className="h-4 w-4" />
-          </Button>
+      {/* Footer: range + pagination (match Tours) */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-gray-600">
+          {total > 0 ? (
+            <>
+              Showing <span className="font-medium">{startIndex}</span>–
+              <span className="font-medium">{endIndex}</span> of{" "}
+              <span className="font-medium">{total}</span>
+            </>
+          ) : (
+            <>No hotels found</>
+          )}
         </div>
-
-        {/* Go to page */}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Go to page</span>
-          <Input
-            className="w-24"
-            type="number"
-            min={1}
-            max={totalPages}
-            value={gotoInput}
-            onChange={(e) => setGotoInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const n = Number(gotoInput);
-                if (Number.isFinite(n)) goToPage(n);
-                setGotoInput("");
-              }
-            }}
-            placeholder={`${currentPage}/${totalPages}`}
-          />
           <Button
             variant="outline"
-            onClick={() => {
-              const n = Number(gotoInput);
-              if (Number.isFinite(n)) goToPage(n);
-              setGotoInput("");
-            }}
-            disabled={!gotoInput}
+            disabled={!canPrev || isFetching}
+            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
           >
-            Go
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!canNext || isFetching}
+            onClick={() => canNext && setPage((p) => p + 1)}
+          >
+            Next
           </Button>
         </div>
       </div>

@@ -55,7 +55,7 @@ const emptyActivityObj = () =>
     {} as Record<`activity_${Lang}`, string>
   );
 
-/** --- Zod schema (strictly typed) --- */
+/** --- Zod schema (YouTube optional) --- */
 const schema = z.object({
   days: z.coerce.number().min(1, "Days is required"),
   type: z.enum(["private", "group"] as const, {
@@ -63,7 +63,9 @@ const schema = z.object({
   }),
   cityId: z.coerce.number().int().min(1, "City is required"),
   tourCategoryId: z.coerce.number().int().min(1, "Category is required"),
-  youtubeLink: z.string().url("Must be a valid YouTube URL"),
+  youtubeLink: z
+    .union([z.string().url("Must be a valid YouTube URL"), z.literal("")])
+    .optional(),
   thumbnailFile: z.any().optional(),
 
   infos: z
@@ -88,7 +90,6 @@ const schema = z.object({
     )
     .min(1, "Add at least one route"),
 
-  /** Multilingual itinerary */
   itinerary: z
     .array(
       z.object({
@@ -136,18 +137,6 @@ const schema = z.object({
 
 export type TourFormValues = z.infer<typeof schema>;
 
-/** Make sure your Tour type supports multilingual itinerary like this:
- * itinerary?: {
- *   day: number;
- *   activity_en: string;
- *   activity_ru?: string;
- *   activity_gr?: string;
- *   activity_jp?: string;
- *   activity_es?: string;
- *   activity_zh?: string;
- * }[];
- */
-
 type Props = {
   open: boolean;
   onOpenChange: (val: boolean) => void;
@@ -176,11 +165,14 @@ export function TourFormModal({
     []
   );
 
-  const { data: cities = [], isLoading: citiesLoading } = useCities({
-    limit: 100,
+  /** Cities (paginated) */
+  const { data: citiesPage, isLoading: citiesLoading } = useCities({
+    page: 1,
+    limit: 20,
   });
-  const tourCatsQuery = useTourCategories();
+  const cities = citiesPage?.data ?? [];
 
+  const tourCatsQuery = useTourCategories();
   const categories: Category[] = React.useMemo(() => {
     const raw = tourCatsQuery.data as any;
     return Array.isArray(raw) ? raw : raw?.data ?? [];
@@ -321,20 +313,13 @@ export function TourFormModal({
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const selectedCityId = watch("cityId");
-  const selectedCategoryId = watch("tourCategoryId");
   const ro = isView ? { readOnly: true, disabled: true } : {};
-
-  const selectedCity = cities.find((c) => c.id === selectedCityId);
-  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
 
   const TYPE_OPTIONS = [
     { value: "private", label: "Private" },
     { value: "group", label: "Group" },
   ] as const;
-  const selectedType = watch("type") as
-    | (typeof TYPE_OPTIONS)[number]["value"]
-    | undefined;
+ 
   const getTypeLabel = (v?: string | null) =>
     TYPE_OPTIONS.find((o) => o.value === v)?.label ?? "";
 
@@ -375,14 +360,13 @@ export function TourFormModal({
       type: values.type,
       cityId: values.cityId,
       tourCategoryId: values.tourCategoryId,
-      youtubeLink: values.youtubeLink,
+      youtubeLink: values.youtubeLink || undefined,
       thumbnail: thumbnailUrl ?? undefined,
       images: mergedImages,
 
       infos: values.infos,
       routes: values.routes,
 
-      // multilingual itinerary mapped into backend shape
       itinerary: values.itinerary.map((it) => ({
         day: it.day,
         activity_en: (it as any).activity_en,
@@ -475,7 +459,7 @@ export function TourFormModal({
               {isView ? (
                 <Input
                   value={
-                    getTypeLabel(selectedType) ||
+                    getTypeLabel(watch("type")) ||
                     getTypeLabel(initialData?.type) ||
                     ""
                   }
@@ -484,7 +468,6 @@ export function TourFormModal({
                 />
               ) : (
                 <>
-                  {/* keep RHF field registered */}
                   <input type="hidden" {...register("type")} />
                   <Popover>
                     <PopoverTrigger asChild>
@@ -493,8 +476,8 @@ export function TourFormModal({
                         role="combobox"
                         className="w-full justify-between"
                       >
-                        {selectedType
-                          ? getTypeLabel(selectedType)
+                        {watch("type")
+                          ? getTypeLabel(watch("type"))
                           : "Select type"}
                       </Button>
                     </PopoverTrigger>
@@ -502,30 +485,35 @@ export function TourFormModal({
                       <Command>
                         <CommandInput placeholder="Search type..." />
                         <CommandEmpty>No type found.</CommandEmpty>
-                        <CommandGroup>
-                          {TYPE_OPTIONS.map((opt) => (
-                            <CommandItem
-                              key={opt.value}
-                              value={opt.label}
-                              onSelect={() =>
-                                setValue("type", opt.value as any, {
-                                  shouldValidate: true,
-                                  shouldDirty: true,
-                                  shouldTouch: true,
-                                })
-                              }
-                            >
-                              <Check
-                                className={`mr-2 h-4 w-4 ${
-                                  selectedType === opt.value
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                }`}
-                              />
-                              {opt.label}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
+                        <div className="max-h-72 overflow-y-auto overscroll-contain">
+                          <CommandGroup>
+                            {[
+                              { value: "private", label: "Private" },
+                              { value: "group", label: "Group" },
+                            ].map((opt) => (
+                              <CommandItem
+                                key={opt.value}
+                                value={opt.label}
+                                onSelect={() =>
+                                  setValue("type", opt.value as any, {
+                                    shouldValidate: true,
+                                    shouldDirty: true,
+                                    shouldTouch: true,
+                                  })
+                                }
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${
+                                    watch("type") === opt.value
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  }`}
+                                />
+                                {opt.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </div>
                       </Command>
                     </PopoverContent>
                   </Popover>
@@ -534,7 +522,7 @@ export function TourFormModal({
               )}
             </div>
 
-            {/* City */}
+            {/* City (scrollable on hover) */}
             <div>
               <Label required>City</Label>
               {isView ? (
@@ -576,29 +564,32 @@ export function TourFormModal({
                     <Command>
                       <CommandInput placeholder="Search city..." />
                       <CommandEmpty>No city found.</CommandEmpty>
-                      <CommandGroup>
-                        {cities.map((city) => (
-                          <CommandItem
-                            key={city.id}
-                            value={`${city.name_en} ${city.name_ru || ""}`}
-                            onSelect={() =>
-                              setValue("cityId", city.id, {
-                                shouldValidate: true,
-                              })
-                            }
-                          >
-                            <Check
-                              className={`mr-2 h-4 w-4 ${
-                                city.id === watch("cityId")
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              }`}
-                            />
-                            {city.name_en}
-                            {city.name_ru ? ` - ${city.name_ru}` : ""}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                      {/* This container handles scrolling with mouse wheel/hover */}
+                      <div className="max-h-72 overflow-y-auto overscroll-contain">
+                        <CommandGroup>
+                          {cities.map((city) => (
+                            <CommandItem
+                              key={city.id}
+                              value={`${city.name_en} ${city.name_ru || ""}`}
+                              onSelect={() =>
+                                setValue("cityId", city.id, {
+                                  shouldValidate: true,
+                                })
+                              }
+                            >
+                              <Check
+                                className={`mr-2 h-4 w-4 ${
+                                  city.id === watch("cityId")
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                }`}
+                              />
+                              {city.name_en}
+                              {city.name_ru ? ` - ${city.name_ru}` : ""}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </div>
                     </Command>
                   </PopoverContent>
                 </Popover>
@@ -606,7 +597,7 @@ export function TourFormModal({
               {!isView && <InlineError msg={errors.cityId?.message} />}
             </div>
 
-            {/* Category */}
+            {/* Category (scrollable on hover) */}
             <div>
               <Label required>Category</Label>
               {isView ? (
@@ -645,31 +636,34 @@ export function TourFormModal({
                     <Command>
                       <CommandInput placeholder="Search category…" />
                       <CommandEmpty>No category found.</CommandEmpty>
-                      <CommandGroup className="max-h-64 overflow-auto">
-                        {categories.map((c) => {
-                          const lbl = categoryLabel(c);
-                          const checked = c.id === watch("tourCategoryId");
-                          return (
-                            <CommandItem
-                              key={c.id}
-                              value={lbl}
-                              onSelect={() =>
-                                setValue("tourCategoryId", c.id, {
-                                  shouldValidate: true,
-                                })
-                              }
-                              className="flex items-center justify-between"
-                            >
-                              <div className="truncate">{lbl}</div>
-                              <Check
-                                className={`h-4 w-4 ${
-                                  checked ? "opacity-100" : "opacity-0"
-                                }`}
-                              />
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
+                      {/* Scroll container */}
+                      <div className="max-h-72 overflow-y-auto overscroll-contain">
+                        <CommandGroup>
+                          {categories.map((c) => {
+                            const lbl = categoryLabel(c);
+                            const checked = c.id === watch("tourCategoryId");
+                            return (
+                              <CommandItem
+                                key={c.id}
+                                value={lbl}
+                                onSelect={() =>
+                                  setValue("tourCategoryId", c.id, {
+                                    shouldValidate: true,
+                                  })
+                                }
+                                className="flex items-center justify-between"
+                              >
+                                <div className="truncate">{lbl}</div>
+                                <Check
+                                  className={`h-4 w-4 ${
+                                    checked ? "opacity-100" : "opacity-0"
+                                  }`}
+                                />
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </div>
                     </Command>
                   </PopoverContent>
                 </Popover>
@@ -678,7 +672,7 @@ export function TourFormModal({
             </div>
 
             <div className="md:col-span-2">
-              <Label required>YouTube Link</Label>
+              <Label>YouTube Link</Label>
               <Input
                 {...register("youtubeLink")}
                 placeholder="https://youtube.com/watch?v=xxxxx"
@@ -865,7 +859,7 @@ export function TourFormModal({
             ))}
           </section>
 
-          {/* Itinerary (multilingual) */}
+          {/* Itinerary */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <Label required>Itinerary</Label>

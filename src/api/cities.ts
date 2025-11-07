@@ -1,7 +1,13 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import {
+    useQuery,
+    useMutation,
+    useQueryClient,
+    keepPreviousData,
+} from "@tanstack/react-query";
 import axiosInstance from "./axios";
 import toast from "react-hot-toast";
 
+// ---------- Types ----------
 export type City = {
     id: number;
     name_ru: string;
@@ -18,13 +24,24 @@ export type CityPayload = Pick<
     "name_en" | "name_ru" | "name_es" | "name_gr" | "name_jp" | "name_zh" | "countryId"
 >;
 
-interface CityFilters {
-    page?: number;
+export type CityFilters = {
+    page?: number;   
     limit?: number;
     name?: string;
     country?: string;
-}
+};
 
+export type Paginated<T> = {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    data: T[];
+    hasNextPage?: boolean;
+    hasPrevPage?: boolean;
+};
+
+// ---------- Helpers ----------
 export const sanitizeCityPayload = (p: Partial<City>): Partial<CityPayload> => {
     const base: Partial<CityPayload> = {
         name_en: p.name_en?.trim(),
@@ -50,20 +67,94 @@ const normalizeCity = (raw: any): City => ({
         typeof raw.countryId === "number" ? raw.countryId : raw.country?.id ?? undefined,
 });
 
+function clampToPositiveInt(n: number | undefined, fallback: number) {
+    const v = Number.isFinite(n as number) ? Number(n) : fallback;
+    return v > 0 ? Math.floor(v) : fallback;
+}
+
+function normalizeCitiesResponse(
+    raw: any,
+    params: CityFilters
+): Paginated<City> {
+    // 1) Array<City>
+    if (Array.isArray(raw)) {
+        const page = clampToPositiveInt(params.page, 1);
+        const limit = clampToPositiveInt(params.limit, raw.length || 10);
+        const total = raw.length;
+        const totalPages = Math.max(1, Math.ceil(total / Math.max(1, limit)));
+        return {
+            data: raw.map(normalizeCity),
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        };
+    }
+
+    // 2) { data: City[], meta: {...} }
+    if (raw?.meta && Array.isArray(raw?.data)) {
+        const { total, page, limit, totalPages } = raw.meta;
+        return {
+            data: (raw.data as any[]).map(normalizeCity),
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        };
+    }
+
+    // 3) { data: City[], total, page, limit, totalPages }
+    if (Array.isArray(raw?.data)) {
+        const page = clampToPositiveInt(raw.page, params.page ?? 1);
+        const limit = clampToPositiveInt(raw.limit, params.limit ?? 10);
+        const total = clampToPositiveInt(raw.total, raw.data.length);
+        const totalPages =
+            raw.totalPages ?? Math.max(1, Math.ceil(total / Math.max(1, limit)));
+        return {
+            data: (raw.data as any[]).map(normalizeCity),
+            total,
+            page,
+            limit,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1,
+        };
+    }
+
+    // fallback
+    const coerced: City[] = raw ? [normalizeCity(raw)] : [];
+    return {
+        data: coerced,
+        total: coerced.length,
+        page: clampToPositiveInt(params.page, 1),
+        limit: clampToPositiveInt(params.limit, coerced.length || 10),
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+    };
+}
+
+// ---------- API ----------
+async function fetchCities(filters: CityFilters = {}): Promise<Paginated<City>> {
+    const { page, limit, name, country } = filters;
+    const params: Record<string, string | number> = {};
+    if (page) params.page = page;
+    if (limit) params.limit = limit;
+    if (name?.trim()) params.name = name.trim();
+    if (country?.trim()) params.country = country.trim();
+
+    const { data } = await axiosInstance.get("/city", { params });
+    return normalizeCitiesResponse(data, filters);
+}
+
 export const useCities = (filters: CityFilters = {}) => {
-    const { page = 0, limit = 10, name, country } = filters;
-
-    return useQuery<City[]>({
-        queryKey: ["cities", { page, limit, name, country }],
-        queryFn: async () => {
-            const params: Record<string, string | number> = { page, limit };
-            if (name?.trim()) params.name = name.trim();
-            if (country?.trim()) params.country = country.trim();
-
-            const { data } = await axiosInstance.get("/city", { params });
-            const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-            return rows.map(normalizeCity);
-        },
+    return useQuery<Paginated<City>>({
+        queryKey: ["cities", filters],
+        queryFn: () => fetchCities(filters),
         placeholderData: keepPreviousData,
         staleTime: 30_000,
         refetchOnWindowFocus: false,
