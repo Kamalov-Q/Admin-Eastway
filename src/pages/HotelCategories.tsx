@@ -172,7 +172,7 @@ export default function HotelCategoriesPage() {
             value={effectiveLimit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
-              setPage(1);
+              setPage(1); 
             }}
           >
             {[5, 10, 20, 50].map((n) => (
