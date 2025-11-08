@@ -16,22 +16,14 @@ import { HotelCategoryFormModal } from "@/components/forms/hotel-category-form";
 import { HotelCategoryTable } from "@/components/tables/hotel-category-table";
 
 export default function HotelCategoriesPage() {
-  // Pagination state (client state regardless of server/client pagination)
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
 
-  // If your hook supports params, pass them; otherwise ignore.
-  // We call the param version if available, else fall back.
   const { data, isLoading, isFetching, isError, error } =
     useHotelCategories?.() ??
-    // @ts-ignore – in case the hook has no params version
     useHotelCategories();
 
-  // Normalize response shape:
-  // - Server shape: { data, total, page, limit, totalPages }
-  // - Array shape: Category[]
   const normalize = React.useMemo(() => {
-    // Server paginated
     if (data && typeof data === "object" && "data" in (data as any)) {
       const raw = data as any;
       const items: Category[] = Array.isArray(raw.data) ? raw.data : [];
@@ -51,7 +43,6 @@ export default function HotelCategoriesPage() {
       };
     }
 
-    // Client-side pagination
     const all: Category[] = Array.isArray(data) ? (data as Category[]) : [];
     const total = all.length;
     const totalPages = Math.max(1, Math.ceil(total / (limit || 1)));
@@ -74,12 +65,10 @@ export default function HotelCategoriesPage() {
   const canPrev = currentPage > 1;
   const canNext = currentPage < totalPages;
 
-  // CRUD hooks
   const create = useCreateHotelCategory();
   const update = useUpdateHotelCategory();
   const remove = useDeleteHotelCategory();
 
-  // Modal state
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<"create" | "edit" | "view">("create");
   const [selected, setSelected] = React.useState<Category | null>(null);
@@ -128,14 +117,12 @@ export default function HotelCategoriesPage() {
       error: (e) => (e as any)?.message || "Failed to delete",
     });
 
-    // If last item on the current page was removed, step back a page (when possible)
     const remaining = (items?.length ?? 1) - 1;
     if (remaining <= 0 && currentPage > 1) {
       setPage((p) => Math.max(1, p - 1));
     }
   };
 
-  // First-load skeleton
   if (!data && isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -162,7 +149,6 @@ export default function HotelCategoriesPage() {
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
 
-  // Range display
   const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
   const endIndex = Math.min(total, currentPage * effectiveLimit);
 
@@ -173,7 +159,6 @@ export default function HotelCategoriesPage() {
         <Button onClick={openCreate}>+ Add Category</Button>
       </div>
 
-      {/* Top controls (page + rows + prev/next) */}
       <div className="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div className="text-sm text-gray-600">
           Page <span className="font-medium">{currentPage}</span> of{" "}
@@ -216,7 +201,6 @@ export default function HotelCategoriesPage() {
         </div>
       </div>
 
-      {/* Table + overlay */}
       <div className="relative rounded-xl border bg-white p-2">
         {isFetching && items.length > 0 && (
           <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl z-10">
@@ -238,7 +222,6 @@ export default function HotelCategoriesPage() {
         />
       </div>
 
-      {/* Footer: range + pagination */}
       <div className="mt-4 flex items-center justify-between">
         <div className="text-sm text-gray-600">
           {total > 0 ? (
