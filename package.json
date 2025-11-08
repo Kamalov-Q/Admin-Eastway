@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "CI=1 node --trace-uncaught --trace-warnings ./node_modules/vite/bin/vite.js build --debug --logLevel info",
     "preview": "vite preview",
     "lint": "eslint ."
   },
