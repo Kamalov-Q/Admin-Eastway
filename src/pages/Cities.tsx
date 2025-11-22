@@ -55,7 +55,7 @@ export default function CitiesPage() {
     data: countriesPage,
     isLoading: countryLoading,
     isError: countryError,
-  } = useCountries({ page: 1, limit: 20 });
+  } = useCountries({ limit: 100 });
   const {
     data: citiesPage,
     isLoading,
@@ -276,48 +276,53 @@ export default function CitiesPage() {
         {countryLoading ? (
           <Skeleton className="h-9 w-64" />
         ) : (
-          <Select
-            value={countryFilter === "" ? ALL_COUNTRIES : countryFilter}
-            onValueChange={(v) =>
-              setCountryFilter(v === ALL_COUNTRIES ? "" : v)
-            }
-            disabled={countryLoading || countryError}
-          >
-            <SelectTrigger className="max-w-xs">
-              <SelectValue
-                placeholder={
-                  countryLoading ? "Loading countries…" : "Filter by country…"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_COUNTRIES}>All countries</SelectItem>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-gray-600">Country</label>
+            <Select
+              value={countryFilter === "" ? ALL_COUNTRIES : countryFilter}
+              onValueChange={(v) =>
+                setCountryFilter(v === ALL_COUNTRIES ? "" : v)
+              }
+              disabled={countryLoading || countryError}
+            >
+              <SelectTrigger className="max-w-xs">
+                <SelectValue
+                  placeholder={
+                    countryLoading ? "Loading countries…" : "Filter by country…"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_COUNTRIES}>All countries</SelectItem>
 
-              {countryError && (
-                <SelectItem value="__ERROR__" disabled>
-                  Failed to load countries
-                </SelectItem>
-              )}
-              {!countryError &&
-                !countryLoading &&
-                sortedCountries.length === 0 && (
-                  <SelectItem value="__EMPTY__" disabled>
-                    No countries
+                {countryError && (
+                  <SelectItem value="__ERROR__" disabled>
+                    Failed to load countries
                   </SelectItem>
                 )}
+                {!countryError &&
+                  !countryLoading &&
+                  sortedCountries.length === 0 && (
+                    <SelectItem value="__EMPTY__" disabled>
+                      No countries
+                    </SelectItem>
+                  )}
 
-              {sortedCountries.map(({ key, value, label }) => (
-                <SelectItem key={key} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {sortedCountries.map(({ key, value, label }) => (
+                  <SelectItem key={key} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
 
-        <div className="flex items-center gap-2">
+        {/* Rows */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm text-gray-600">Rows</label>
           <select
-            className="border rounded-md py-1.5 px-2 text-sm"
+            className="border rounded-md py-2 px-2 text-sm"
             value={limit}
             onChange={(e) => {
               setLimit(Number(e.target.value));

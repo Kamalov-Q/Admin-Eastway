@@ -321,14 +321,6 @@ export default function ToursPage() {
             ))}
           </select>
         </div>
-
-        {/* Page display */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of{" "}
-            <span className="font-medium">{totalPages}</span>
-          </div>
-        </div>
       </div>
 
       {/* Table + overlay */}
@@ -351,7 +343,7 @@ export default function ToursPage() {
       </div>
 
       {/* Footer: range + pagination */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-gray-600">
           {total > 0 ? (
             <>
@@ -360,24 +352,31 @@ export default function ToursPage() {
               <span className="font-medium">{total}</span>
             </>
           ) : (
-            <>No tours found</>
+            <>No cities found</>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!canPrev || isFetching}
-            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canNext || isFetching}
-            onClick={() => canNext && setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

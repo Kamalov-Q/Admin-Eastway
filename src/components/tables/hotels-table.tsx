@@ -56,7 +56,7 @@ export function HotelsTable({
     isError: isCitiesError,
     error: citiesError,
     isLoading: isCitiesLoading,
-  } = useCities();
+  } = useCities({limit: 100});
 
   // Normalize cities data to City[]
   const cities: City[] = useMemo(() => {

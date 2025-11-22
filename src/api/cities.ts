@@ -147,7 +147,7 @@ async function fetchCities(filters: CityFilters = {}): Promise<Paginated<City>> 
     if (name?.trim()) params.name = name.trim();
     if (country?.trim()) params.country = country.trim();
 
-    const { data } = await axiosInstance.get("/city", { params });
+    const { data } = await axiosInstance.get<Paginated<City>>("/city", { params });
     return normalizeCitiesResponse(data, filters);
 }
 

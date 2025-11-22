@@ -3,8 +3,8 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import toast from "react-hot-toast"; 
- 
+import toast from "react-hot-toast";
+
 import {
   useHotelCategories,
   useCreateHotelCategory,
@@ -19,51 +19,16 @@ export default function HotelCategoriesPage() {
   const [page, setPage] = React.useState<number>(1);
   const [limit, setLimit] = React.useState<number>(10);
 
-  const { data, isLoading, isFetching, isError, error } =
-    useHotelCategories?.() ??
-    useHotelCategories();
-
-  const normalize = React.useMemo(() => {
-    if (data && typeof data === "object" && "data" in (data as any)) {
-      const raw = data as any;
-      const items: Category[] = Array.isArray(raw.data) ? raw.data : [];
-      const total: number = Number(raw.total ?? items.length);
-      const currentPage: number = Number(raw.page ?? page);
-      const effectiveLimit: number = Number(raw.limit ?? limit);
-      const totalPages: number =
-        Number(raw.totalPages) ||
-        Math.max(1, Math.ceil(total / (effectiveLimit || 1)));
-      return {
-        items,
-        total,
-        currentPage,
-        effectiveLimit,
-        totalPages,
-        server: true as const,
-      };
-    }
-
-    const all: Category[] = Array.isArray(data) ? (data as Category[]) : [];
-    const total = all.length;
-    const totalPages = Math.max(1, Math.ceil(total / (limit || 1)));
-    const currentPage = Math.min(Math.max(1, page), totalPages);
-    const start = (currentPage - 1) * limit;
-    const end = start + limit;
-    const items = all.slice(start, end);
-    return {
-      items,
-      total,
-      currentPage,
-      effectiveLimit: limit,
-      totalPages,
-      server: false as const,
-    };
-  }, [data, page, limit]);
-
-  const { items, total, currentPage, effectiveLimit, totalPages } = normalize;
-
-  const canPrev = currentPage > 1;
-  const canNext = currentPage < totalPages;
+  const {
+    data: pageData,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+  } = useHotelCategories({
+    page,
+    limit,
+  });
 
   const create = useCreateHotelCategory();
   const update = useUpdateHotelCategory();
@@ -72,6 +37,38 @@ export default function HotelCategoriesPage() {
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<"create" | "edit" | "view">("create");
   const [selected, setSelected] = React.useState<Category | null>(null);
+
+  // Extract pagination data from new structure (MUST BE BEFORE EARLY RETURNS)
+  const paginationData = React.useMemo(() => {
+    let items: Category[] = [];
+    let total = 0;
+    let totalPages = 1;
+    let currentPage = page;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (pageData) {
+      // New structure: { data: Category[], meta: { ... } }
+      items = pageData.data ?? [];
+      const meta = pageData.meta;
+
+      if (meta) {
+        total = meta.total ?? 0;
+        totalPages = meta.totalPages ?? 1;
+        currentPage = meta.page ?? page;
+        hasNextPage = meta.hasNextPage ?? false;
+        hasPrevPage = meta.hasPrevPage ?? false;
+      }
+    }
+
+    return { items, total, totalPages, currentPage, hasNextPage, hasPrevPage };
+  }, [pageData, page]);
+
+  const { items, total, totalPages, currentPage, hasNextPage, hasPrevPage } =
+    paginationData;
+
+  const canPrev = hasPrevPage || currentPage > 1;
+  const canNext = hasNextPage || currentPage < totalPages;
 
   const openCreate = () => {
     setSelected(null);
@@ -123,7 +120,12 @@ export default function HotelCategoriesPage() {
     }
   };
 
-  if (!data && isLoading) {
+  // Calculate range for display
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
+
+  // First-load skeleton (AFTER all hooks)
+  if (!pageData && isLoading) {
     return (
       <div className="p-6 space-y-6">
         <div className="h-7 w-56 bg-gray-200 rounded" />
@@ -144,13 +146,11 @@ export default function HotelCategoriesPage() {
     );
   }
 
-  if (isError)
+  if (isError) {
     return (
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
-
-  const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
-  const endIndex = Math.min(total, currentPage * effectiveLimit);
+  }
 
   return (
     <div className="p-6">
@@ -160,19 +160,15 @@ export default function HotelCategoriesPage() {
       </div>
 
       <div className="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div className="text-sm text-gray-600">
-          Page <span className="font-medium">{currentPage}</span> of{" "}
-          <span className="font-medium">{totalPages}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
+        {/* Rows */}
+        <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Rows</label>
           <select
             className="border rounded-md py-2 px-2 text-sm"
-            value={effectiveLimit}
+            value={limit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
-              setPage(1); 
+              setPage(1);
             }}
           >
             {[5, 10, 20, 50].map((n) => (
@@ -181,23 +177,6 @@ export default function HotelCategoriesPage() {
               </option>
             ))}
           </select>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              disabled={!canPrev || isFetching}
-              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!canNext || isFetching}
-              onClick={() => canNext && setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -222,7 +201,8 @@ export default function HotelCategoriesPage() {
         />
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      {/* Footer: range + pagination */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-gray-600">
           {total > 0 ? (
             <>
@@ -231,24 +211,31 @@ export default function HotelCategoriesPage() {
               <span className="font-medium">{total}</span>
             </>
           ) : (
-            <>No categories found</>
+            <>No cities found</>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!canPrev || isFetching}
-            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canNext || isFetching}
-            onClick={() => canNext && setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

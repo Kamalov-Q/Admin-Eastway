@@ -75,7 +75,7 @@ export default function HotelsPage() {
   const dCategory = useDebounced(category);
 
   // -------- Countries ----------
-  const countriesQuery = useCountries();
+  const countriesQuery = useCountries({limit: 100});
   const countriesRaw = countriesQuery.data as any;
   const countries: Country[] = Array.isArray(countriesRaw)
     ? countriesRaw
@@ -217,21 +217,54 @@ export default function HotelsPage() {
     setFormOpen(false);
   };
 
-  // ---------- Table pagination & range ----------
-  const hotels = pageData?.data ?? [];
-  const total = pageData?.total ?? 0;
-  const totalPages = pageData?.totalPages ?? 1;
-  const currentPage = pageData?.page ?? page;
+  // ---------- Extract pagination data ----------
+  const paginationData = React.useMemo(() => {
+    let hotels: Hotel[] = [];
+    let total = 0;
+    let totalPages = 1;
+    let currentPage = page;
+    let hasNextPage = false;
+    let hasPrevPage = false;
 
-  const canPrev = pageData
-    ? !!(pageData as any).hasPrevPage || currentPage > 1
-    : currentPage > 1;
-  const canNext = pageData
-    ? !!(pageData as any).hasNextPage || currentPage < totalPages
-    : currentPage < totalPages;
+    if (pageData) {
+      // New structure: { data: Hotel[], meta: { ... } }
+      hotels = pageData.data ?? [];
+      const meta = pageData.meta;
+
+      if (meta) {
+        total = meta.total ?? 0;
+        totalPages = meta.totalPages ?? 1;
+        currentPage = meta.page ?? page;
+        hasNextPage = meta.hasNextPage ?? false;
+        hasPrevPage = meta.hasPrevPage ?? false;
+      }
+    }
+
+    return { hotels, total, totalPages, currentPage, hasNextPage, hasPrevPage };
+  }, [pageData, page]);
+
+  const { hotels, total, totalPages, currentPage, hasNextPage, hasPrevPage } =
+    paginationData;
+
+  const canPrev = hasPrevPage || currentPage > 1;
+  const canNext = hasNextPage || currentPage < totalPages;
 
   const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const endIndex = Math.min(total, currentPage * limit);
+
+  const onDelete = async (id: number) => {
+    await deleteHotel.mutateAsync(id);
+    const remaining = hotels.length - 1;
+    if (remaining <= 0 && currentPage > 1) {
+      setPage((p) => Math.max(1, p - 1));
+    }
+  };
+
+  if (!pageData && isLoading) return <div className="p-6">Loading…</div>;
+  if (isError)
+    return (
+      <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
+    );
 
   // Prevent Select from closing when pressing dropdown pagination buttons
   const keepOpenMouseDown: React.MouseEventHandler<HTMLDivElement> = (e) => {
@@ -246,20 +279,6 @@ export default function HotelsPage() {
   const categoryLabel = (cat: any) =>
     localized(cat, ["name_en", "name_ru", "name_es"]) ??
     String((cat as any).id);
-
-  const onDelete = async (id: number) => {
-    await deleteHotel.mutateAsync(id);
-    const remaining = (hotels?.length ?? 1) - 1;
-    if (remaining <= 0 && currentPage > 1) {
-      setPage((p) => Math.max(1, p - 1));
-    }
-  };
-
-  if (!pageData && isLoading) return <div className="p-6">Loading…</div>;
-  if (isError)
-    return (
-      <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
-    );
 
   return (
     <div className="p-6">
@@ -473,14 +492,6 @@ export default function HotelsPage() {
             ))}
           </select>
         </div>
-
-        {/* Page display (like Tours) */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of{" "}
-            <span className="font-medium">{totalPages}</span>
-          </div>
-        </div>
       </div>
 
       {/* Table + overlay */}
@@ -505,8 +516,8 @@ export default function HotelsPage() {
         />
       </div>
 
-      {/* Footer: range + pagination (match Tours) */}
-      <div className="mt-4 flex items-center justify-between">
+      {/* Footer: range + pagination */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-gray-600">
           {total > 0 ? (
             <>
@@ -515,24 +526,31 @@ export default function HotelsPage() {
               <span className="font-medium">{total}</span>
             </>
           ) : (
-            <>No hotels found</>
+            <>No cities found</>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!canPrev || isFetching}
-            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canNext || isFetching}
-            onClick={() => canNext && setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

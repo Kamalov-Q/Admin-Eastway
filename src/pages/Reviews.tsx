@@ -125,64 +125,47 @@ export default function ReviewsPage() {
     }
   };
 
-  // Initial skeleton
-  if (!pageData && isLoading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="h-7 w-48 bg-gray-200 rounded" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-10 bg-gray-200 rounded" />
-          ))}
-        </div>
-        <div className="border rounded-xl bg-white p-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-3 py-3 border-b last:border-b-0"
-            >
-              <div className="h-5 w-10 bg-gray-200 rounded" />
-              <div className="h-5 w-60 bg-gray-200 rounded" />
-              <div className="h-5 w-80 bg-gray-200 rounded" />
-              <div className="h-5 w-24 bg-gray-200 rounded" />
-              <div className="h-5 w-24 bg-gray-200 rounded" />
-              <div className="h-5 w-40 bg-gray-200 rounded" />
-              <div className="h-8 w-8 bg-gray-200 rounded ml-auto" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  // ---------- Extract pagination data from new structure (MUST BE BEFORE EARLY RETURNS) ----------
+  const paginationData = React.useMemo(() => {
+    let reviews: Review[] = [];
+    let total = 0;
+    let totalPages = 1;
+    let currentPage = page;
+    let hasNextPage = false;
+    let hasPrevPage = false;
 
-  if (isError) {
-    return (
-      <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
-    );
-  }
+    if (pageData) {
+      // New structure: { data: Review[], meta: { ... } }
+      reviews = pageData.data ?? [];
+      const meta = pageData.meta;
 
-  // Pagination info (match Tours UI & be resilient to different API shapes)
-  const reviews = pageData?.data ?? [];
-  const total = pageData?.total ?? reviews.length ?? 0;
-  const totalPages =
-    pageData?.totalPages ??
-    Math.max(1, Math.ceil(total / ((pageData?.limit ?? limit) || 1)));
-  const currentPage = pageData?.page ?? page;
-  const effectiveLimit = pageData?.limit ?? limit;
+      if (meta) {
+        total = meta.total ?? 0;
+        totalPages = meta.totalPages ?? 1;
+        currentPage = meta.page ?? page;
+        hasNextPage = meta.hasNextPage ?? false;
+        hasPrevPage = meta.hasPrevPage ?? false;
+      }
+    }
 
-  const canPrev =
-    (pageData as any)?.hasPrevPage !== undefined
-      ? !!(pageData as any).hasPrevPage
-      : currentPage > 1;
-  const canNext =
-    (pageData as any)?.hasNextPage !== undefined
-      ? !!(pageData as any).hasNextPage
-      : currentPage < totalPages;
+    return {
+      reviews,
+      total,
+      totalPages,
+      currentPage,
+      hasNextPage,
+      hasPrevPage,
+    };
+  }, [pageData, page]);
 
-  const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
-  const endIndex = Math.min(total, currentPage * effectiveLimit);
+  const { reviews, total, totalPages, currentPage, hasNextPage, hasPrevPage } =
+    paginationData;
+
+  const canPrev = hasPrevPage || currentPage > 1;
+  const canNext = hasNextPage || currentPage < totalPages;
+
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
 
   return (
     <div className="p-6">
@@ -224,11 +207,11 @@ export default function ReviewsPage() {
         </div>
 
         {/* Rows */}
-        <div className="flex items-end gap-2 md:col-start-6 md:justify-self-end">
+        <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Rows</label>
           <select
             className="border rounded-md py-2 px-2 text-sm"
-            value={effectiveLimit}
+            value={limit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
               setPage(1);
@@ -240,14 +223,6 @@ export default function ReviewsPage() {
               </option>
             ))}
           </select>
-        </div>
-
-        {/* Page display */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of{" "}
-            <span className="font-medium">{totalPages}</span>
-          </div>
         </div>
       </div>
 
@@ -272,8 +247,8 @@ export default function ReviewsPage() {
         />
       </div>
 
-      {/* Footer: range + pagination (same as Tours) */}
-      <div className="mt-4 flex items-center justify-between">
+      {/* Footer: range + pagination */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-gray-600">
           {total > 0 ? (
             <>
@@ -282,24 +257,31 @@ export default function ReviewsPage() {
               <span className="font-medium">{total}</span>
             </>
           ) : (
-            <>No reviews found</>
+            <>No cities found</>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!canPrev || isFetching}
-            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canNext || isFetching}
-            onClick={() => canNext && setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 

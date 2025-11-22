@@ -72,12 +72,18 @@ export type HotelsQuery = {
     page?: number;
 };
 
-export type Paginated<T> = {
+export type PaginationMeta = {
     total: number;
     page: number;
     limit: number;
     totalPages: number;
+    hasNextPage?: boolean;
+    hasPrevPage?: boolean;
+};
+
+export type Paginated<T> = {
     data: T[];
+    meta: PaginationMeta;
 };
 
 async function fetchHotels(params: HotelsQuery = {}): Promise<Paginated<Hotel>> {
@@ -91,12 +97,40 @@ async function fetchHotels(params: HotelsQuery = {}): Promise<Paginated<Hotel>> 
 
     const { data } = await axiosInstance.get("/hotels", { params: q });
 
+    // Handle array response (no pagination)
     if (Array.isArray(data)) {
         const page = params.page ?? 1;
         const limit = params.limit ?? (data.length || 10);
-        return { total: data.length, page, limit, totalPages: 1, data };
+        return {
+            data,
+            meta: {
+                total: data.length,
+                page,
+                limit,
+                totalPages: 1,
+                hasNextPage: false,
+                hasPrevPage: false,
+            },
+        };
     }
 
+    // CORRECT: Handle response with meta object (your API format)
+    if (data?.meta && data?.data && Array.isArray(data.data)) {
+        const meta = data.meta;
+        return {
+            data: data.data as Hotel[],
+            meta: {
+                total: Number(meta.total ?? 0),
+                page: Number(meta.page ?? params.page ?? 1),
+                limit: Number(meta.limit ?? params.limit ?? 10),
+                totalPages: Number(meta.totalPages ?? 1),
+                hasNextPage: Boolean(meta.hasNextPage),
+                hasPrevPage: Boolean(meta.hasPrevPage),
+            },
+        };
+    }
+
+    // FALLBACK: Handle flat structure (legacy)
     if (data?.data && Array.isArray(data.data)) {
         const page = Number(data.page ?? params.page ?? 1);
         const limit = Number(data.limit ?? params.limit ?? (data.data.length || 10));
@@ -104,15 +138,31 @@ async function fetchHotels(params: HotelsQuery = {}): Promise<Paginated<Hotel>> 
         const totalPages = Number(
             data.totalPages ?? Math.max(1, Math.ceil(total / (limit || 1)))
         );
-        return { total, page, limit, totalPages, data: data.data as Hotel[] };
+        return {
+            data: data.data as Hotel[],
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1,
+            },
+        };
     }
 
+    // Ultimate fallback
+    const fallbackData = (data?.data ?? data ?? []) as Hotel[];
     return {
-        total: data?.length ?? 0,
-        page: params.page ?? 1,
-        limit: params.limit ?? (data?.length ?? 10),
-        totalPages: 1,
-        data: (data?.data ?? data ?? []) as Hotel[],
+        data: fallbackData,
+        meta: {
+            total: fallbackData.length,
+            page: params.page ?? 1,
+            limit: params.limit ?? (fallbackData.length || 10),
+            totalPages: 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+        },
     };
 }
 

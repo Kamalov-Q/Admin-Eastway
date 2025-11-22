@@ -151,13 +151,14 @@ export default function CountriesPage() {
             className="w-72"
           />
         </div>
-        <div className="flex items-center gap-2">
+        {/* Rows */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm text-gray-600">Rows</label>
           <select
-            className="border rounded-md py-1.5 px-2 text-sm"
+            className="border rounded-md py-2 px-2 text-sm"
             value={limit}
             onChange={(e) => {
-              const next = Number(e.target.value);
-              setLimit(next);
+              setLimit(Number(e.target.value));
               setPage(1);
             }}
           >

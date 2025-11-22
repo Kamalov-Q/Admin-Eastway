@@ -36,8 +36,7 @@ export function CitiesTable({
   onEdit: (c: City) => void;
   onDelete: (id: number) => void | Promise<void>;
 }) {
-  // Countries may be an array or a paginated object { data: [] }
-  const countriesQuery = useCountries?.() as any;
+  const countriesQuery = useCountries({limit: 100});
   const countriesRaw = countriesQuery?.data;
   const countries: any[] = Array.isArray(countriesRaw)
     ? countriesRaw

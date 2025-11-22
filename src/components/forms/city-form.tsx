@@ -75,7 +75,7 @@ export function CityFormModal({
       name_gr: "",
       name_jp: "",
       name_zh: "",
-      countryId: initialData?.countryId, // default from initial record
+      countryId: initialData?.countryId, 
     },
   });
 
@@ -98,7 +98,6 @@ export function CityFormModal({
 
   const submit = handleSubmit((vals) => {
     if (!isView && onSubmit) {
-      // vals is already strictly the 6 langs + countryId
       onSubmit(vals);
       reset();
       onOpenChange(false);

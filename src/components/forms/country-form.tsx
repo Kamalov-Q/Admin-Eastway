@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useCities, type City } from "@/api/cities";
+import { useCities, type City, type Paginated } from "@/api/cities";
 import type { Country } from "@/api/countries";
 
 const LANGUAGE_FIELDS: { key: keyof Country; label: string }[] = [
@@ -47,10 +47,14 @@ export function CountryFormModal({
 
   const isViewMode = mode === "view";
 
-  const { data: cities = [], isLoading: citiesLoading } = useCities({
+  const { data: citiesData = [], isLoading: citiesLoading } = useCities({
     country: initialData?.name_en ?? "",
     limit: 100,
   });
+
+  const cities = Array.isArray(citiesData)
+    ? citiesData
+    : (citiesData as Paginated<City> | undefined)?.data ?? [];
 
   React.useEffect(() => {
     reset(
@@ -112,9 +116,9 @@ export function CountryFormModal({
               </h3>
               {citiesLoading ? (
                 <p className="text-sm text-gray-500">Loading cities...</p>
-              ) : cities.length > 0 ? (
-                <div className="space-y-2">
-                  {cities.map((city: City) => (
+              ) : cities?.length > 0 ? (
+                <div className="max-h-64 overflow-y-auto space-y-2 pr-2">
+                  {cities?.map((city: City) => (
                     <div
                       key={city.id}
                       className="rounded-lg border border-gray-200 p-3 bg-white/60"

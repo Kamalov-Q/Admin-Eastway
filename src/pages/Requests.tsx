@@ -115,7 +115,49 @@ export default function RequestsPage() {
     }
   };
 
-  // Initial skeleton
+  // ---------- Extract pagination data from new structure (MUST BE BEFORE EARLY RETURNS) ----------
+  const paginationData = React.useMemo(() => {
+    let requests: Request[] = [];
+    let total = 0;
+    let totalPages = 1;
+    let currentPage = page;
+    let hasNextPage = false;
+    let hasPrevPage = false;
+
+    if (pageData) {
+      // New structure: { data: Request[], meta: { ... } }
+      requests = pageData.data ?? [];
+      const meta = pageData.meta;
+
+      if (meta) {
+        total = meta.total ?? 0;
+        totalPages = meta.totalPages ?? 1;
+        currentPage = meta.page ?? page;
+        hasNextPage = meta.hasNextPage ?? false;
+        hasPrevPage = meta.hasPrevPage ?? false;
+      }
+    }
+
+    return {
+      requests,
+      total,
+      totalPages,
+      currentPage,
+      hasNextPage,
+      hasPrevPage,
+    };
+  }, [pageData, page]);
+
+  const { requests, total, totalPages, currentPage, hasNextPage, hasPrevPage } =
+    paginationData;
+
+  const canPrev = hasPrevPage || currentPage > 1;
+  const canNext = hasNextPage || currentPage < totalPages;
+
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endIndex = Math.min(total, currentPage * limit);
+
+  // Initial skeleton (AFTER all hooks)
   if (!pageData && isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -152,27 +194,6 @@ export default function RequestsPage() {
       <div className="p-6 text-red-600">Error: {(error as any)?.message}</div>
     );
   }
-
-  // Pagination info (match Tours UI)
-  const requests = pageData?.data ?? [];
-  const total = pageData?.total ?? requests.length ?? 0;
-  const totalPages =
-    pageData?.totalPages ??
-    Math.max(1, Math.ceil(total / (pageData?.limit ?? (limit || 1))));
-  const currentPage = pageData?.page ?? page;
-  const effectiveLimit = pageData?.limit ?? limit;
-
-  const canPrev =
-    (pageData as any)?.hasPrevPage !== undefined
-      ? !!(pageData as any).hasPrevPage
-      : currentPage > 1;
-  const canNext =
-    (pageData as any)?.hasNextPage !== undefined
-      ? !!(pageData as any).hasNextPage
-      : currentPage < totalPages;
-
-  const startIndex = total === 0 ? 0 : (currentPage - 1) * effectiveLimit + 1;
-  const endIndex = Math.min(total, currentPage * effectiveLimit);
 
   return (
     <div className="p-6">
@@ -213,11 +234,11 @@ export default function RequestsPage() {
         </div>
 
         {/* Rows per page */}
-        <div className="flex items-end gap-2 md:col-start-6 md:justify-self-end">
+        <div className="flex flex-col gap-1">
           <label className="text-sm text-gray-600">Rows</label>
           <select
             className="border rounded-md py-2 px-2 text-sm"
-            value={effectiveLimit}
+            value={limit}
             onChange={(e) => {
               setLimit(Number(e.target.value));
               setPage(1);
@@ -231,13 +252,6 @@ export default function RequestsPage() {
           </select>
         </div>
 
-        {/* Page display */}
-        <div className="flex items-end">
-          <div className="text-sm text-gray-600">
-            Page <span className="font-medium">{currentPage}</span> of{" "}
-            <span className="font-medium">{totalPages}</span>
-          </div>
-        </div>
       </div>
 
       {/* Table + overlay */}
@@ -267,8 +281,8 @@ export default function RequestsPage() {
         />
       </div>
 
-      {/* Footer: range + pagination (match Tours) */}
-      <div className="mt-4 flex items-center justify-between">
+      {/* Footer: range + pagination */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-gray-600">
           {total > 0 ? (
             <>
@@ -277,24 +291,31 @@ export default function RequestsPage() {
               <span className="font-medium">{total}</span>
             </>
           ) : (
-            <>No requests found</>
+            <>No cities found</>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            disabled={!canPrev || isFetching}
-            onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canNext || isFetching}
-            onClick={() => canNext && setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
+
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-600">
+            Page <span className="font-medium">{currentPage}</span> of{" "}
+            <span className="font-medium">{totalPages}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canPrev || isFetching}
+              onClick={() => canPrev && setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canNext || isFetching}
+              onClick={() => canNext && setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
 
