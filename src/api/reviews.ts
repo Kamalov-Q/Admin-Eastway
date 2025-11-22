@@ -73,7 +73,6 @@ async function fetchReviews(params: ReviewsQuery = {}): Promise<Paginated<Review
 }
 
 export function useReviews(params: ReviewsQuery = {}) {
-    // ✅ scalar query key to ensure refetch on type/id changes
     const key = [
         "reviews",
         params.type ?? "all",
@@ -97,7 +96,7 @@ export function useUpdateReview() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ id, status }: { id: number; status: Exclude<ReviewStatus, "pending"> }) =>
-            axiosInstance.patch(`/reviews/${id}`, { status }).then((r) => r.data),
+            axiosInstance.patch(`/reviews/${id}/status`, { status }).then((r) => r.data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews"] }),
     });
 }
