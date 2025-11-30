@@ -78,7 +78,7 @@ export type ToursQuery = {
     category?: string;
     type?: "private" | "group";
     limit?: number;
-    page?: number; // 1-based
+    page?: number;
 };
 
 export type Paginated<T> = {
@@ -101,7 +101,6 @@ function normalizeToursResponse(
     raw: any,
     params: ToursQuery
 ): Paginated<Tour> {
-    // 1) Array<Tour>
     if (Array.isArray(raw)) {
         const page = clampToPositiveInt(params.page, 1);
         const limit = clampToPositiveInt(params.limit, raw.length || 10);
@@ -118,7 +117,6 @@ function normalizeToursResponse(
         };
     }
 
-    // 2) { data: Tour[], meta: {...} }
     if (raw?.meta && Array.isArray(raw?.data)) {
         const { total, page, limit, totalPages } = raw.meta;
         return {
@@ -132,7 +130,6 @@ function normalizeToursResponse(
         };
     }
 
-    // 3) { data: Tour[], total, page, limit, totalPages }
     if (Array.isArray(raw?.data)) {
         const page = clampToPositiveInt(raw.page, params.page ?? 1);
         const limit = clampToPositiveInt(raw.limit, params.limit ?? 10);
@@ -150,7 +147,6 @@ function normalizeToursResponse(
         };
     }
 
-    // fallback
     const list: Tour[] = raw?.data ?? raw ?? [];
     const page = clampToPositiveInt(params.page, 1);
     const limit = clampToPositiveInt(params.limit, list.length || 10);
@@ -187,7 +183,7 @@ export function useTours(params: ToursQuery = {}) {
     return useQuery<Paginated<Tour>>({
         queryKey: ["tours", params],
         queryFn: () => fetchTours(params),
-        placeholderData: keepPreviousData, // v5-friendly pagination UX
+        placeholderData: keepPreviousData,
         staleTime: 30_000,
         refetchOnWindowFocus: false,
     });

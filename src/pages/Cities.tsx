@@ -87,7 +87,7 @@ export default function CitiesPage() {
     }
   }, [isError, error, countryError]);
 
-  const openCreate = () => {
+  const openCreate = () => { 
     setSelectedCity(null);
     setModalMode("create");
     setModalOpen(true);

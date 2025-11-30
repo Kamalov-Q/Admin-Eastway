@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { useCities, type City, type Paginated } from "@/api/cities";
 import type { Country } from "@/api/countries";
+import CustomLabel from "../CustomLabel";
+import InlineError from "../InlineError";
+import { Loader2 } from "lucide-react";
 
 const LANGUAGE_FIELDS: { key: keyof Country; label: string }[] = [
   { key: "name_en", label: "English" },
@@ -34,7 +37,12 @@ export function CountryFormModal({
   onSubmit: (payload: Partial<Country>) => void;
   mode?: "edit" | "view" | "create";
 }) {
-  const { register, handleSubmit, reset } = useForm({
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isDirty, isLoading },
+  } = useForm({
     defaultValues: initialData ?? {
       name_en: "",
       name_ru: "",
@@ -45,8 +53,9 @@ export function CountryFormModal({
     },
   });
 
-  const isViewMode = mode === "view";
+  const [loading, setLoading] = useState(false);
 
+  const isView = mode === "view";
   const { data: citiesData = [], isLoading: citiesLoading } = useCities({
     country: initialData?.name_en ?? "",
     limit: 100,
@@ -69,9 +78,29 @@ export function CountryFormModal({
     );
   }, [initialData, reset]);
 
+  const submit = handleSubmit(async (vals) => {
+    if (!isView && onSubmit) {
+      try {
+        setLoading(true);
+        onSubmit(vals);
+        setLoading(false);
+        reset();
+        onOpenChange(false);
+      } catch {
+        setLoading(false);
+      } finally {
+        setLoading(false);
+      }
+    }
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-lg">
+      <DialogContent
+        className="max-w-2xl bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-lg"
+        onInteractOutside={(e) => e?.preventDefault()}
+        onEscapeKeyDown={(e) => e?.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold text-gray-800">
             {mode === "view"
@@ -82,34 +111,30 @@ export function CountryFormModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={handleSubmit((vals) => {
-            onSubmit(vals);
-            onOpenChange(false);
-          })}
-          className="space-y-4"
-        >
-          {/* Country multilingual fields */}
+        <form onSubmit={submit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {LANGUAGE_FIELDS.map((field) => (
               <div key={field.key}>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
-                  {field.label}
-                </label>
+                <CustomLabel>{field.label}</CustomLabel>
                 <Input
-                  {...register(field.key)}
+                  {...register(field.key, {
+                    required:
+                      mode !== "view" ? `${field?.label} is required` : false,
+                  })}
                   placeholder={field.label}
                   defaultValue={initialData?.[field.key] ?? ""}
-                  readOnly={isViewMode}
-                  disabled={isViewMode}
-                  className={isViewMode ? "bg-gray-50 cursor-not-allowed" : ""}
+                  readOnly={isView}
+                  disabled={isView}
+                  className={isView ? "bg-gray-50 cursor-not-allowed" : ""}
+                />
+                <InlineError
+                  msg={(errors as any)?.[field?.key]?.message as string}
                 />
               </div>
             ))}
           </div>
 
-          {/* Linked cities (read-only in view mode) */}
-          {isViewMode && (
+          {isView && (
             <div className="mt-6 border-t border-gray-200 pt-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">
                 Cities in {initialData?.name_en}
@@ -147,15 +172,22 @@ export function CountryFormModal({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
+              disabled={loading}
             >
-              {isViewMode ? "Close" : "Cancel"}
+              {isView ? "Close" : "Cancel"}
             </Button>
-            {!isViewMode && (
-              <Button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              >
-                {mode === "edit" ? "Update" : "Create"}
+            {!isView && (
+              <Button type="submit" disabled={!isDirty || isLoading || loading}>
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </div>
+                ) : mode == "edit" ? (
+                  "Update"
+                ) : (
+                  "Create"
+                )}
               </Button>
             )}
           </div>

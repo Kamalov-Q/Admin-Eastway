@@ -1,29 +1,10 @@
-// src/tables/cities-table.tsx
-"use client";
-
 import { useMemo, useState } from "react";
 import type { City } from "@/api/cities";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Eye, Pencil, Trash2, MoreHorizontal } from "lucide-react";
 import { useCountries } from "@/api/countries";
+import ActionsButton from "../ActionsButton";
+import ConfirmDialog from "../ConfirmButton";
 
 export function CitiesTable({
   data,
@@ -36,7 +17,7 @@ export function CitiesTable({
   onEdit: (c: City) => void;
   onDelete: (id: number) => void | Promise<void>;
 }) {
-  const countriesQuery = useCountries({limit: 100});
+  const countriesQuery = useCountries({ limit: 100 });
   const countriesRaw = countriesQuery?.data;
   const countries: any[] = Array.isArray(countriesRaw)
     ? countriesRaw
@@ -59,7 +40,6 @@ export function CitiesTable({
     return nested || byId || "-";
   };
 
-  // Delete confirmation dialog state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<City | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -67,10 +47,6 @@ export function CitiesTable({
   const askDelete = (city: City) => {
     setPendingDelete(city);
     setDeleteOpen(true);
-  };
-  const onCloseDelete = (open: boolean) => {
-    setDeleteOpen(open);
-    if (!open) setPendingDelete(null);
   };
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -105,29 +81,12 @@ export function CitiesTable({
       cell: ({ row }) => {
         const city = row.original;
         return (
-          <div className="flex justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem onClick={() => onView(city)}>
-                  <Eye className="h-4 w-4 mr-2" /> Show
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onEdit(city)}>
-                  <Pencil className="h-4 w-4 mr-2" /> Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-600"
-                  onClick={() => askDelete(city)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <ActionsButton
+            item={city}
+            onView={onView}
+            onEdit={onEdit}
+            onDelete={() => askDelete(city)}
+          />
         );
       },
     },
@@ -136,40 +95,18 @@ export function CitiesTable({
   return (
     <>
       <DataTable columns={columns} data={data} />
-
-      <AlertDialog open={deleteOpen} onOpenChange={onCloseDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this city?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingDelete ? (
-                <>
-                  You are about to delete <b>#{pendingDelete.id}</b>
-                  {pendingDelete.name_en ? (
-                    <>
-                      {" "}
-                      (<i>{pendingDelete.name_en}</i>)
-                    </>
-                  ) : null}
-                  . This action cannot be undone.
-                </>
-              ) : (
-                "This action cannot be undone."
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={confirmDelete}
-              disabled={deleting}
-            >
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onConfirm={confirmDelete}
+        loading={deleting}
+        title="You are going to delete this country! Are you sure ???"
+        description={
+          pendingDelete ? `Country: ${pendingDelete.name_en}` : undefined
+        }
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+      />
     </>
   );
 }

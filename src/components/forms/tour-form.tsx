@@ -20,7 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
-import { X, Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2, Check, X } from "lucide-react";
 
 import { useCities } from "@/api/cities";
 import { useTourCategories, type Category } from "@/api/tour-category";
@@ -39,7 +39,6 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 
-/** --- i18n setup (6 languages) --- */
 const LANGS = ["en", "ru", "gr", "jp", "es", "zh"] as const;
 type Lang = (typeof LANGS)[number];
 
@@ -55,7 +54,6 @@ const emptyActivityObj = () =>
     {} as Record<`activity_${Lang}`, string>
   );
 
-/** --- Zod schema (YouTube optional) --- */
 const schema = z.object({
   days: z.coerce.number().min(1, "Days is required"),
   type: z.enum(["private", "group"] as const, {
@@ -77,7 +75,8 @@ const schema = z.object({
         )
       )
     )
-    .min(1, "Add at least one info"),
+    .min(1, "Add at least one info")
+    .optional(),
 
   routes: z
     .array(
@@ -88,7 +87,8 @@ const schema = z.object({
         )
       )
     )
-    .min(1, "Add at least one route"),
+    .min(1, "Add at least one route")
+    .optional(),
 
   itinerary: z
     .array(
@@ -112,7 +112,8 @@ const schema = z.object({
         )
       )
     )
-    .min(1, "Add at least one included item"),
+    .min(1, "Add at least one included item")
+    .optional(),
   priceNotIncluded: z
     .array(
       z.object(
@@ -122,7 +123,8 @@ const schema = z.object({
         )
       )
     )
-    .min(1, "Add at least one not-included item"),
+    .min(1, "Add at least one not-included item")
+    .optional(),
 
   ...LANGS.reduce(
     (acc, lang) => ({
@@ -165,10 +167,9 @@ export function TourFormModal({
     []
   );
 
-  /** Cities (paginated) */
   const { data: citiesPage, isLoading: citiesLoading } = useCities({
     page: 1,
-    limit: 20,
+    limit: 100,
   });
   const cities = citiesPage?.data ?? [];
 
@@ -319,7 +320,7 @@ export function TourFormModal({
     { value: "private", label: "Private" },
     { value: "group", label: "Group" },
   ] as const;
- 
+
   const getTypeLabel = (v?: string | null) =>
     TYPE_OPTIONS.find((o) => o.value === v)?.label ?? "";
 
@@ -414,7 +415,11 @@ export function TourFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto p-6">
+      <DialogContent
+        className="max-h-[90vh] overflow-y-auto p-6"
+        onInteractOutside={(e) => e?.preventDefault()}
+        onEscapeKeyDown={(e) => e?.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {isView ? "View Tour" : initialData ? "Edit Tour" : "Add Tour"}
@@ -429,15 +434,27 @@ export function TourFormModal({
                 <label className="font-semibold">
                   Title ({lang.toUpperCase()})
                 </label>
-                <Input {...register(`title_${lang}` as const)} {...ro} />
+                <Input
+                  {...register(`title_${lang}` as const)}
+                  {...ro}
+                  placeholder={`Title in ${lang}`}
+                />
                 <label className="font-semibold">
                   Description ({lang.toUpperCase()})
                 </label>
-                <Input {...register(`desc_${lang}` as const)} {...ro} />
+                <Input
+                  {...register(`desc_${lang}` as const)}
+                  {...ro}
+                  placeholder={`Description in ${lang}`}
+                />
                 <label className="font-semibold">
                   Address ({lang.toUpperCase()})
                 </label>
-                <Input {...register(`address_${lang}` as const)} {...ro} />
+                <Input
+                  {...register(`address_${lang}` as const)}
+                  {...ro}
+                  placeholder={`Address in ${lang}`}
+                />
               </div>
             ))}
           </div>
@@ -478,7 +495,7 @@ export function TourFormModal({
                       >
                         {watch("type")
                           ? getTypeLabel(watch("type"))
-                          : "Select type"}
+                          : "Select a type"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-full p-0">
@@ -756,7 +773,7 @@ export function TourFormModal({
           {/* Infos */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label required>Infos</Label>
+              <Label>Infos</Label>
               {!isView && (
                 <Button
                   type="button"
@@ -809,7 +826,7 @@ export function TourFormModal({
           {/* Routes */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label required>Routes</Label>
+              <Label>Routes</Label>
               {!isView && (
                 <Button
                   type="button"
@@ -947,7 +964,7 @@ export function TourFormModal({
             {!isView && <InlineError msg={errors.priceAmount?.message} />}
 
             <div className="flex items-center justify-between mt-2">
-              <Label required>Included</Label>
+              <Label>Included</Label>
               {!isView && (
                 <Button
                   type="button"
@@ -1000,7 +1017,7 @@ export function TourFormModal({
             ))}
 
             <div className="flex items-center justify-between mt-2">
-              <Label required>Not Included</Label>
+              <Label>Not Included</Label>
               {!isView && (
                 <Button
                   type="button"

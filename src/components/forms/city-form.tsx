@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,14 +19,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+import CustomLabel from "../CustomLabel";
+import InlineError from "../InlineError";
 
 const CityPayloadSchema = z.object({
-  name_en: z.string().trim().optional(),
-  name_ru: z.string().trim().optional(),
-  name_es: z.string().trim().optional(),
-  name_gr: z.string().trim().optional(),
-  name_jp: z.string().trim().optional(),
-  name_zh: z.string().trim().optional(),
+  name_en: z.string().trim().min(1, "Name en is required"),
+  name_ru: z.string().trim().min(1, "Name ru is required"),
+  name_es: z.string().trim().min(1, "Name es is required"),
+  name_gr: z.string().trim().min(1, "Name gr is required"),
+  name_jp: z.string().trim().min(1, "Name jp is required"),
+  name_zh: z.string().trim().min(1, "Name zh is required"),
   countryId: z.number({ error: "Country is required" }),
 });
 type CityFormValues = z.infer<typeof CityPayloadSchema>;
@@ -53,11 +56,13 @@ export function CityFormModal({
   onSubmit?: (payload: Partial<City>) => void;
   mode?: "edit" | "view" | "create";
 }) {
-  const countriesQuery = useCountries({limit: 100});
+  const countriesQuery = useCountries({ limit: 100 });
   const raw = countriesQuery.data as any;
   const countries: Country[] = Array.isArray(raw) ? raw : raw?.data ?? [];
 
   const isView = mode === "view";
+
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
@@ -65,7 +70,7 @@ export function CityFormModal({
     reset,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty, isLoading },
   } = useForm<CityFormValues>({
     resolver: zodResolver(CityPayloadSchema),
     defaultValues: {
@@ -75,13 +80,12 @@ export function CityFormModal({
       name_gr: "",
       name_jp: "",
       name_zh: "",
-      countryId: initialData?.countryId, 
+      countryId: initialData?.countryId,
     },
   });
 
   const selectedCountryId = watch("countryId");
 
-  // Reset form when modal opens or data changes (only on our whitelisted fields)
   useEffect(() => {
     if (open) {
       reset({
@@ -96,17 +100,29 @@ export function CityFormModal({
     }
   }, [initialData, open, reset]);
 
-  const submit = handleSubmit((vals) => {
+  const submit = handleSubmit(async (vals) => {
     if (!isView && onSubmit) {
-      onSubmit(vals);
-      reset();
-      onOpenChange(false);
+      try {
+        setLoading(true);
+        onSubmit(vals);
+        setLoading(false);
+        reset();
+        onOpenChange(false);
+      } catch {
+        setLoading(false);
+      } finally {
+        setLoading(false);
+      }
     }
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-white">
+      <DialogContent
+        className="max-w-2xl bg-white"
+        onInteractOutside={(e) => e?.preventDefault()}
+        onEscapeKeyDown={(e) => e?.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {mode === "view"
@@ -127,7 +143,7 @@ export function CityFormModal({
           <form onSubmit={submit} className="space-y-4">
             {/* Country selector */}
             <div>
-              <label className="text-sm font-medium">Country</label>
+              <CustomLabel required>Country</CustomLabel>
               {isView ? (
                 <div className="p-2 border rounded bg-gray-50">
                   {countries.find((c) => c.id === selectedCountryId)?.name_en ??
@@ -177,7 +193,7 @@ export function CityFormModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {LANGUAGE_FIELDS.map(({ key, label }) => (
                 <div key={key}>
-                  <label className="text-sm font-medium">{label}</label>
+                  <CustomLabel required>{label}</CustomLabel>
                   {isView ? (
                     <div className="p-2 border rounded bg-gray-50 text-gray-700">
                       {(initialData as any)?.[key] || "N/A"}
@@ -189,11 +205,9 @@ export function CityFormModal({
                         placeholder={label}
                         disabled={isView}
                       />
-                      {errors[key] && (
-                        <p className="mt-1 text-xs text-red-600">
-                          {String(errors[key]?.message)}
-                        </p>
-                      )}
+                      <InlineError
+                        msg={(errors as any)?.[key]?.message as string}
+                      />
                     </>
                   )}
                 </div>
@@ -206,6 +220,7 @@ export function CityFormModal({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
+                disabled={loading}
               >
                 {isView ? "Close" : "Cancel"}
               </Button>
@@ -213,9 +228,19 @@ export function CityFormModal({
               {!isView && (
                 <Button
                   type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  disabled={!isDirty || loading || isLoading}
+                  className="min-w-[90px]"
                 >
-                  {mode === "edit" ? "Update" : "Create"}
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </div>
+                  ) : mode == "edit" ? (
+                    "Update"
+                  ) : (
+                    "Create"
+                  )}
                 </Button>
               )}
             </div>
