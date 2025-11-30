@@ -31,17 +31,14 @@ export default function TourCategoriesPage() {
     limit,
   });
 
-  // CRUD hooks
   const create = useCreateTourCategory();
   const update = useUpdateTourCategory();
   const remove = useDeleteTourCategory();
 
-  // Modal state
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<"create" | "edit" | "view">("create");
   const [selected, setSelected] = React.useState<Category | null>(null);
 
-  // Extract pagination data from new structure (MUST BE BEFORE EARLY RETURNS)
   const paginationData = React.useMemo(() => {
     let items: Category[] = [];
     let total = 0;
@@ -51,7 +48,6 @@ export default function TourCategoriesPage() {
     let hasPrevPage = false;
 
     if (pageData) {
-      // New structure: { data: Category[], meta: { ... } }
       items = pageData.data ?? [];
       const meta = pageData.meta;
 
@@ -117,18 +113,15 @@ export default function TourCategoriesPage() {
       error: (e) => (e as any)?.message || "Failed to delete",
     });
 
-    // If we deleted the last item on this page and there are previous pages, go back a page
     const remaining = (items?.length ?? 1) - 1;
     if (remaining <= 0 && currentPage > 1) {
       setPage((p) => Math.max(1, p - 1));
     }
   };
 
-  // Calculate range for display
   const startIndex = total === 0 ? 0 : (currentPage - 1) * limit + 1;
   const endIndex = Math.min(total, currentPage * limit);
 
-  // First-load skeleton (AFTER all hooks)
   if (!pageData && isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -163,7 +156,6 @@ export default function TourCategoriesPage() {
         <Button onClick={openCreate}>+ Add Category</Button>
       </div>
 
-      {/* Page + rows controls (top, similar to Tours/Reviews) */}
       <div className="mb-4 flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         {/* Rows */}
         <div className="flex flex-col gap-1">
