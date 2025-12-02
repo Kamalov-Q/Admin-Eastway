@@ -37,7 +37,6 @@ type Props = {
 };
 
 export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
-  // ---- City name map (paginated hook) ----
   const { data: citiesPage } = useCities({ limit: 100 });
   const cities: City[] = citiesPage?.data ?? [];
 
@@ -50,7 +49,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
   const cityName = (id?: number) =>
     typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
 
-  // ---- Category name map (supports array or {data}) ----
+  // ---- Category name map  ----
   const { data: catRaw } = useTourCategories({limit: 100});
   const categories: Category[] = Array.isArray(catRaw)
     ? (catRaw as Category[])

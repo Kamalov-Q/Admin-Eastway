@@ -56,7 +56,7 @@ export function HotelsTable({
     isError: isCitiesError,
     error: citiesError,
     isLoading: isCitiesLoading,
-  } = useCities({limit: 100});
+  } = useCities({ limit: 100 });
 
   // Normalize cities data to City[]
   const cities: City[] = useMemo(() => {
@@ -305,8 +305,11 @@ export function HotelsTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem onClick={() => onView(hotel)}>
-                          <Eye className="h-4 w-4 mr-2" /> Show
+                        <DropdownMenuItem
+                          onClick={() => onView(hotel)}
+                          className="text-blue-600 focus:text-blue-700"
+                        >
+                          <Eye className="h-4 w-4 mr-2 text-blue-600" /> Show
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onEdit(hotel)}>
                           <Pencil className="h-4 w-4 mr-2" /> Edit
@@ -315,7 +318,8 @@ export function HotelsTable({
                           className="text-red-600 focus:text-red-600"
                           onClick={() => askDelete(hotel)}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          <Trash2 className="h-4 w-4 mr-2 text-red-600" />{" "}
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
