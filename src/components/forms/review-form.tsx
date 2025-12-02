@@ -59,7 +59,8 @@ export function ReviewFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm"
+      >
         <DialogHeader>
           <DialogTitle>Update Status — Review #{review.id}</DialogTitle>
         </DialogHeader>

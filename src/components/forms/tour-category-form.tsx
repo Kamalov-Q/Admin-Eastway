@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Category } from "@/api/tour-category";
+import CustomLabel from "../CustomLabel";
 
 const LANGS = ["en", "ru", "es", "zh", "jp", "gr"] as const;
 
@@ -82,7 +83,11 @@ export function TourCategoryFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent
+        className="max-w-lg"
+        onInteractOutside={(e) => e?.preventDefault()}
+        onEscapeKeyDown={(e) => e?.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {isView
@@ -96,10 +101,12 @@ export function TourCategoryFormModal({
         <form onSubmit={handleSubmit(submitHandler)} className="space-y-4">
           {LANGS.map((lang) => (
             <div key={lang}>
-              <label className="text-sm font-semibold">
-                Name ({lang.toUpperCase()})
-              </label>
-              <Input {...register(`name_${lang}` as const)} {...ro} />
+              <CustomLabel required>Name ({lang.toUpperCase()})</CustomLabel>
+              <Input
+                {...register(`name_${lang}` as const)}
+                {...ro}
+                placeholder={`Name in ${lang}`}
+              />
               {lang === "en" && errors.name_en && (
                 <p className="text-xs text-red-600 mt-1">
                   {errors.name_en.message}
