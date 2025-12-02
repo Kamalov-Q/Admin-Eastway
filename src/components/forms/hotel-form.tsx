@@ -37,7 +37,6 @@ import CustomLabel from "../CustomLabel";
 import StarRating from "../star-rating";
 
 /* ---------- helpers ---------- */
-/* ---------- helpers ---------- */
 const emptyNameObject = () =>
   LANGS.reduce(
     (acc, lang) => ({ ...acc, [`name_${lang}`]: "" }),
