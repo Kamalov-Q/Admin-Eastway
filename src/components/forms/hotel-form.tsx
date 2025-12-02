@@ -37,6 +37,7 @@ import CustomLabel from "../CustomLabel";
 import StarRating from "../star-rating";
 
 /* ---------- helpers ---------- */
+/* ---------- helpers ---------- */
 const emptyNameObject = () =>
   LANGS.reduce(
     (acc, lang) => ({ ...acc, [`name_${lang}`]: "" }),
@@ -67,44 +68,51 @@ const schema = z.object({
       [`desc_${lang}`]: z.string().optional(),
       [`address_${lang}`]: z.string().optional(),
     }),
-    {} as Record<`desc_${Lang}` | `address_${Lang}`, z.ZodOptional<z.ZodString>>
+    {} as Record<`desc_${Lang}` | `address_${Lang}`, z.ZodTypeAny>
   ),
 
-  rating: z.coerce.number().min(1, "Rating is required").max(5),
+  rating: z
+    .union([z.string(), z.number(), z.null(), z.undefined()])
+    .transform((value) => {
+      if (value === undefined) return undefined; // untouched → keep old
+      if (value === "" || value === null) return null; // user cleared it
+      const parsed = Number(value);
+      return isNaN(parsed) ? null : parsed;
+    })
+    .optional(),
 
-  cityId: z.coerce.number().int().min(1, "City is required"),
-  categoryId: z.coerce.number().int().min(1, "Category is required"),
+  cityId: z.coerce.number().int().min(1),
+  categoryId: z.coerce.number().int().min(1),
 
   thumbnailFile: z.any().optional(),
 
   distances: z
     .array(
-      z
-        .object({
-          ...LANGS.reduce(
-            (acc, lang) => ({
-              ...acc,
-              [`place_${lang}`]: z
-                .string()
-                .min(1, `Place (${lang.toUpperCase()}) is required`),
-            }),
-            {} as Record<`place_${Lang}`, z.ZodString>
-          ),
-          distance_km: z.coerce.number().min(0, "Distance must be ≥ 0"),
-          duration: z.coerce.number().min(0, "Duration must be ≥ 0"),
-        })
-        .strict()
+      z.object({
+        ...LANGS.reduce(
+          (acc, lang) => ({
+            ...acc,
+            [`place_${lang}`]: z
+              .string()
+              .min(1, `Place (${lang.toUpperCase()}) is required`),
+          }),
+          {} as Record<`place_${Lang}`, z.ZodString>
+        ),
+        distance_km: z.coerce.number().min(0, "Distance must be ≥ 0"),
+        duration: z.coerce.number().min(0, "Duration must be ≥ 0"),
+      })
     )
-    .min(1, "Add at least one distance"),
+    .min(1),
+
   infos: z
     .array(
       z.object(
         LANGS.reduce(
           (acc, lang) => ({
             ...acc,
-            [`name_${lang}`]: z.string().optional(), // ❗ no min() here
+            [`name_${lang}`]: z.string().optional(),
           }),
-          {} as Record<`name_${Lang}`, z.ZodString>
+          {} as Record<`name_${Lang}`, z.ZodTypeAny> // FIXED
         )
       )
     )
@@ -118,7 +126,7 @@ const schema = z.object({
             ...acc,
             [`name_${lang}`]: z.string().optional(),
           }),
-          {} as Record<`name_${Lang}`, z.ZodString>
+          {} as Record<`name_${Lang}`, z.ZodTypeAny> // FIXED
         )
       )
     )
@@ -132,7 +140,7 @@ const schema = z.object({
             ...acc,
             [`name_${lang}`]: z.string().optional(),
           }),
-          {} as Record<`name_${Lang}`, z.ZodString>
+          {} as Record<`name_${Lang}`, z.ZodTypeAny> // FIXED
         )
       )
     )
@@ -250,6 +258,7 @@ export function HotelFormModal({
       reset({
         cityId: initialData.cityId ?? 0,
         categoryId: initialData.categoryId ?? 0,
+        rating: initialData.rating ?? 0,
         distances:
           normalizedDistances.length > 0
             ? normalizedDistances
@@ -340,17 +349,128 @@ export function HotelFormModal({
 
   /* -------- register helpers for number fields -------- */
   const numberField = {
-    // keep empty string while user types so placeholder shows
     setValueAs: (v: any) => (v === "" ? undefined : Number(v)),
   };
 
   /* -------- submit -------- */
+  // const onSubmitHandler = handleSubmit(async (values) => {
+  //   if (isView) {
+  //     onOpenChange(false);
+  //     return;
+  //   }
+
+  //   if (
+  //     !thumbnailPreview &&
+  //     (!values.thumbnailFile || (values.thumbnailFile as any).length === 0) &&
+  //     !initialData?.thumbnail
+  //   ) {
+  //     alert("Thumbnail is required.");
+  //     return;
+  //   }
+
+  //   let thumbnailUrl = initialData?.thumbnail ?? null;
+  //   if ((values as any).thumbnailFile?.[0]) {
+  //     setLoading(true);
+  //     thumbnailUrl = await uploadThumbnail((values as any).thumbnailFile[0]);
+  //     setLoading(false);
+  //   }
+
+  //   let uploadedNewUrls: string[] = [];
+  //   if (newImageFiles.length > 0) {
+  //     setLoading(true);
+  //     uploadedNewUrls = await uploadImages(newImageFiles, "hotels");
+  //     setLoading(false);
+  //   }
+
+  //   const mergedImages = uniqueByUrl([
+  //     ...existingImageUrls.map((url) => ({ url })),
+  //     ...uploadedNewUrls.map((url) => ({ url })),
+  //   ]);
+
+  //   interface DistancePayload {
+  //     place_en: string;
+  //     place_ru: string;
+  //     place_zh: string;
+  //     place_jp: string;
+  //     place_gr: string;
+  //     place_es: string;
+  //     distance_km: number;
+  //     duration: number;
+  //   }
+
+  //   interface MultilingualName {
+  //     name_en: string;
+  //     name_ru: string;
+  //     name_zh: string;
+  //     name_jp: string;
+  //     name_gr: string;
+  //     name_es: string;
+  //   }
+
+  //   const payload: Partial<Hotel> & {
+  //     images: { url: string }[];
+  //     distances: DistancePayload[];
+  //     infos: MultilingualName[];
+  //     services: MultilingualName[];
+  //     property: MultilingualName[];
+  //   } = {
+  //     cityId: Number(values.cityId),
+  //     rating: Number(values.rating),
+  //     categoryId: Number(values.categoryId),
+  //     thumbnail: thumbnailUrl ?? undefined,
+  //     images: mergedImages,
+  //     distances: values.distances.map(
+  //       (d: any): DistancePayload => ({
+  //         place_en: (d.place_en || "").trim(),
+  //         place_ru: (d.place_ru || "").trim(),
+  //         place_zh: (d.place_zh || "").trim(),
+  //         place_jp: (d.place_jp || "").trim(),
+  //         place_gr: (d.place_gr || "").trim(),
+  //         place_es: (d.place_es || "").trim(),
+  //         // normalize to number (if empty => 0)
+  //         distance_km: Number(d.distance_km) || 0,
+  //         duration: Number(d.duration) || 0,
+  //       })
+  //     ),
+  //     infos: values.infos.map((row: any): MultilingualName => ({ ...row })),
+  //     services: values.services.map(
+  //       (row: any): MultilingualName => ({
+  //         ...row,
+  //       })
+  //     ),
+  //     property: values.property.map(
+  //       (row: any): MultilingualName => ({
+  //         ...row,
+  //       })
+  //     ),
+  //     ...LANGS.reduce(
+  //       (acc, lang) => ({
+  //         ...acc,
+  //         [`name_${lang}`]: (values as any)[`name_${lang}`],
+  //         [`desc_${lang}`]: (values as any)[`desc_${lang}`],
+  //         [`address_${lang}`]: (values as any)[`address_${lang}`],
+  //       }),
+  //       {}
+  //     ),
+  //   };
+  //   try {
+  //     setLoading(true);
+  //     await onSubmit(payload);
+  //     onOpenChange(false);
+  //   } catch {
+  //     setLoading(false);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // });
+
   const onSubmitHandler = handleSubmit(async (values) => {
     if (isView) {
       onOpenChange(false);
       return;
     }
 
+    // --- THUMBNAIL LOGIC ---
     if (
       !thumbnailPreview &&
       (!values.thumbnailFile || (values.thumbnailFile as any).length === 0) &&
@@ -361,13 +481,20 @@ export function HotelFormModal({
     }
 
     let thumbnailUrl = initialData?.thumbnail ?? null;
+
     if ((values as any).thumbnailFile?.[0]) {
+      setLoading(true);
       thumbnailUrl = await uploadThumbnail((values as any).thumbnailFile[0]);
+      setLoading(false);
     }
 
+    // --- IMAGES LOGIC ---
     let uploadedNewUrls: string[] = [];
+
     if (newImageFiles.length > 0) {
+      setLoading(true);
       uploadedNewUrls = await uploadImages(newImageFiles, "hotels");
+      setLoading(false);
     }
 
     const mergedImages = uniqueByUrl([
@@ -375,62 +502,38 @@ export function HotelFormModal({
       ...uploadedNewUrls.map((url) => ({ url })),
     ]);
 
-    interface DistancePayload {
-      place_en: string;
-      place_ru: string;
-      place_zh: string;
-      place_jp: string;
-      place_gr: string;
-      place_es: string;
-      distance_km: number;
-      duration: number;
-    }
+    // --- CLEAN EMPTY MULTILINGUAL ROWS ---
+    const cleanBlock = (arr: any[]) =>
+      (arr || [])
+        .map((row) => ({ ...row }))
+        .filter((row) =>
+          Object.values(row).some((v) => (v || "").trim() !== "")
+        );
 
-    interface MultilingualName {
-      name_en: string;
-      name_ru: string;
-      name_zh: string;
-      name_jp: string;
-      name_gr: string;
-      name_es: string;
-    }
-
-    const payload: Partial<Hotel> & {
-      images: { url: string }[];
-      distances: DistancePayload[];
-      infos: MultilingualName[];
-      services: MultilingualName[];
-      property: MultilingualName[];
-    } = {
+    // --- PAYLOAD ---
+    const payload = {
       cityId: Number(values.cityId),
       rating: Number(values.rating),
       categoryId: Number(values.categoryId),
+
       thumbnail: thumbnailUrl ?? undefined,
       images: mergedImages,
-      distances: values.distances.map(
-        (d: any): DistancePayload => ({
-          place_en: (d.place_en || "").trim(),
-          place_ru: (d.place_ru || "").trim(),
-          place_zh: (d.place_zh || "").trim(),
-          place_jp: (d.place_jp || "").trim(),
-          place_gr: (d.place_gr || "").trim(),
-          place_es: (d.place_es || "").trim(),
-          // normalize to number (if empty => 0)
-          distance_km: Number(d.distance_km) || 0,
-          duration: Number(d.duration) || 0,
-        })
-      ),
-      infos: values.infos.map((row: any): MultilingualName => ({ ...row })),
-      services: values.services.map(
-        (row: any): MultilingualName => ({
-          ...row,
-        })
-      ),
-      property: values.property.map(
-        (row: any): MultilingualName => ({
-          ...row,
-        })
-      ),
+
+      distances: values.distances.map((d: any) => ({
+        place_en: (d.place_en || "").trim(),
+        place_ru: (d.place_ru || "").trim(),
+        place_zh: (d.place_zh || "").trim(),
+        place_jp: (d.place_jp || "").trim(),
+        place_gr: (d.place_gr || "").trim(),
+        place_es: (d.place_es || "").trim(),
+        distance_km: Number(d.distance_km) || 0,
+        duration: Number(d.duration) || 0,
+      })),
+
+      infos: cleanBlock(values.infos),
+      services: cleanBlock(values.services),
+      property: cleanBlock(values.property),
+
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
@@ -442,8 +545,16 @@ export function HotelFormModal({
       ),
     };
 
-    await onSubmit(payload);
-    onOpenChange(false);
+    // --- CREATE VS UPDATE ---
+    try {
+      setLoading(true);
+      await onSubmit(payload); // ← update works correctly here
+      onOpenChange(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   });
 
   const ro = isView ? { readOnly: true, disabled: true } : {};
@@ -508,18 +619,20 @@ export function HotelFormModal({
 
             {isView ? (
               <StarRating
-                value={watch("rating") || initialData?.rating || 0}
+                value={watch("rating") ?? initialData?.rating ?? 0}
                 readOnly
               />
             ) : (
               <StarRating
-                value={watch("rating") || initialData?.rating || 0}
+                value={watch("rating") ?? initialData?.rating ?? 0}
                 onChange={(v) =>
-                  setValue("rating", v, { shouldValidate: true })
+                  setValue("rating", v, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
                 }
               />
             )}
-
             {!isView && <InlineError msg={errors.rating?.message ?? ""} />}
           </div>
 
