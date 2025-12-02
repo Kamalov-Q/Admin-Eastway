@@ -1,12 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  useForm,
-  useFieldArray,
-  type Resolver,
-  type DefaultValues,
-} from "react-hook-form";
+import { useForm, useFieldArray, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -60,7 +55,7 @@ const schema = z.object({
     message: "Tour type is required",
   }),
   cityId: z.coerce.number().int().min(1, "City is required"),
-  tourCategoryId: z.coerce.number().int().min(1, "Category is required"),
+  categoryId: z.coerce.number().int().min(1, "Category is required"),
   youtubeLink: z
     .union([z.string().url("Must be a valid YouTube URL"), z.literal("")])
     .optional(),
@@ -70,60 +65,58 @@ const schema = z.object({
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().optional() }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
-    .min(1, "Add at least one info")
     .optional(),
 
   routes: z
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().optional() }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
-    .min(1, "Add at least one route")
     .optional(),
 
   itinerary: z
     .array(
       z.object({
-        day: z.coerce.number().min(1, "Day must be ≥ 1"),
+        day: z.coerce.number().min(1),
         ...LANGS.reduce(
-          (acc, lang) => ({ ...acc, [`activity_${lang}`]: z.string().min(1) }),
-          {} as Record<`activity_${Lang}`, z.ZodString>
+          (acc, lang) => ({
+            ...acc,
+            [`activity_${lang}`]: z.string().optional(),
+          }),
+          {}
         ),
       })
     )
-    .min(1, "Add at least one itinerary entry"),
-
+    .min(1),
   priceAmount: z.coerce.number().min(1, "Price is required"),
   priceIncluded: z
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().optional() }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
-    .min(1, "Add at least one included item")
     .optional(),
   priceNotIncluded: z
     .array(
       z.object(
         LANGS.reduce(
-          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().min(1) }),
+          (acc, lang) => ({ ...acc, [`name_${lang}`]: z.string().optional() }),
           {} as Record<`name_${Lang}`, z.ZodString>
         )
       )
     )
-    .min(1, "Add at least one not-included item")
     .optional(),
 
   ...LANGS.reduce(
@@ -173,7 +166,10 @@ export function TourFormModal({
   });
   const cities = citiesPage?.data ?? [];
 
+  const [loading, setLoading] = React.useState(false);
+
   const tourCatsQuery = useTourCategories();
+
   const categories: Category[] = React.useMemo(() => {
     const raw = tourCatsQuery.data as any;
     return Array.isArray(raw) ? raw : raw?.data ?? [];
@@ -193,7 +189,7 @@ export function TourFormModal({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty, isLoading },
     control,
     reset,
     setValue,
@@ -204,7 +200,9 @@ export function TourFormModal({
       days: initialData?.days ?? 1,
       type: (initialData?.type as any) ?? ("" as any),
       cityId: initialData?.cityId ?? 0,
-      tourCategoryId: initialData?.tourCategoryId ?? 0,
+
+      categoryId: initialData?.categoryId ?? undefined,
+
       youtubeLink: initialData?.youtubeLink ?? "",
       infos: initialData?.infos?.length
         ? (initialData.infos as any)
@@ -231,7 +229,7 @@ export function TourFormModal({
         }),
         {} as Record<string, string>
       ),
-    } as DefaultValues<TourFormValues>,
+    },
   });
 
   const infosArray = useFieldArray({ control, name: "infos" });
@@ -245,44 +243,45 @@ export function TourFormModal({
 
   React.useEffect(() => {
     if (!open) return;
+    if (!initialData) return;
+    if (!categories?.length) return;
+
     reset({
-      days: initialData?.days ?? 1,
-      type: (initialData?.type as any) ?? ("" as any),
-      cityId: initialData?.cityId ?? 0,
-      tourCategoryId: initialData?.tourCategoryId ?? 0,
-      youtubeLink: initialData?.youtubeLink ?? "",
-      infos: initialData?.infos?.length
-        ? (initialData.infos as any)
+      days: initialData.days,
+      type: initialData.type,
+      cityId: initialData.cityId,
+      categoryId: initialData.categoryId,
+      youtubeLink: initialData.youtubeLink ?? "",
+      infos: initialData.infos?.length ? initialData.infos : [emptyNameObj()],
+      routes: initialData.routes?.length
+        ? initialData.routes
         : [emptyNameObj()],
-      routes: initialData?.routes?.length
-        ? (initialData.routes as any)
-        : [emptyNameObj()],
-      itinerary: initialData?.itinerary?.length
-        ? (initialData.itinerary as any)
+      itinerary: initialData.itinerary?.length
+        ? initialData.itinerary
         : [{ day: 1, ...emptyActivityObj() }],
-      priceAmount: initialData?.price?.amount ?? 1,
-      priceIncluded: initialData?.price?.included?.length
-        ? (initialData.price.included as any)
+      priceAmount: initialData.price?.amount ?? 1,
+      priceIncluded: initialData.price?.included?.length
+        ? initialData.price.included
         : [emptyNameObj()],
-      priceNotIncluded: initialData?.price?.notIncluded?.length
-        ? (initialData.price.notIncluded as any)
+      priceNotIncluded: initialData.price?.notIncluded?.length
+        ? initialData.price.notIncluded
         : [emptyNameObj()],
       ...LANGS.reduce(
         (acc, lang) => ({
           ...acc,
-          [`title_${lang}`]: (initialData as any)?.[`title_${lang}`] ?? "",
-          [`desc_${lang}`]: (initialData as any)?.[`desc_${lang}`] ?? "",
-          [`address_${lang}`]: (initialData as any)?.[`address_${lang}`] ?? "",
+          [`title_${lang}`]: initialData[`title_${lang}`] ?? "",
+          [`desc_${lang}`]: initialData[`desc_${lang}`] ?? "",
+          [`address_${lang}`]: initialData[`address_${lang}`] ?? "",
         }),
-        {} as Record<string, string>
+        {}
       ),
-    } as DefaultValues<TourFormValues>);
+    });
 
-    setThumbnailPreview(initialData?.thumbnail ?? null);
-    setExistingImageUrls(initialData?.images?.map((i) => i.url) ?? []);
+    setThumbnailPreview(initialData.thumbnail ?? null);
+    setExistingImageUrls(initialData.images?.map((i) => i.url) ?? []);
     setNewImageFiles([]);
     setNewImagePreviews([]);
-  }, [open, initialData, reset]);
+  }, [open, initialData, categories]);
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
@@ -343,12 +342,16 @@ export function TourFormModal({
     let thumbnailUrl = initialData?.thumbnail ?? null;
     const fileList = (values as any).thumbnailFile as FileList | undefined;
     if (fileList?.[0]) {
+      setLoading(true);
       thumbnailUrl = await uploadThumbnail(fileList[0]);
+      setLoading(false);
     }
 
     let uploadedNewUrls: string[] = [];
     if (newImageFiles.length > 0) {
+      setLoading(true);
       uploadedNewUrls = await uploadImages(newImageFiles, "tours");
+      setLoading(false);
     }
 
     const mergedImages = [
@@ -360,7 +363,7 @@ export function TourFormModal({
       days: values.days,
       type: values.type,
       cityId: values.cityId,
-      tourCategoryId: values.tourCategoryId,
+      categoryId: values.categoryId,
       youtubeLink: values.youtubeLink || undefined,
       thumbnail: thumbnailUrl ?? undefined,
       images: mergedImages,
@@ -395,7 +398,9 @@ export function TourFormModal({
       ),
     };
 
+    setLoading(true);
     await onSubmit(payload);
+    setLoading(false);
     onOpenChange(false);
   };
 
@@ -418,7 +423,6 @@ export function TourFormModal({
       <DialogContent
         className="max-h-[90vh] overflow-y-auto p-6"
         onInteractOutside={(e) => e?.preventDefault()}
-        onEscapeKeyDown={(e) => e?.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle>
@@ -464,6 +468,7 @@ export function TourFormModal({
             <div>
               <Label required>Days</Label>
               <Input
+                min={1}
                 type="number"
                 {...register("days", { valueAsNumber: true })}
                 {...ro}
@@ -539,7 +544,7 @@ export function TourFormModal({
               )}
             </div>
 
-            {/* City (scrollable on hover) */}
+            {/* City */}
             <div>
               <Label required>City</Label>
               {isView ? (
@@ -614,17 +619,17 @@ export function TourFormModal({
               {!isView && <InlineError msg={errors.cityId?.message} />}
             </div>
 
-            {/* Category (scrollable on hover) */}
+            {/* Category */}
             <div>
               <Label required>Category</Label>
               {isView ? (
                 <Input
                   value={
                     categoryLabel(
-                      categories.find((c) => c.id === watch("tourCategoryId"))
+                      categories.find((c) => c.id === watch("categoryId"))
                     ) ||
-                    (initialData?.tourCategoryId
-                      ? `#${initialData.tourCategoryId}`
+                    (initialData?.categoryId
+                      ? `#${initialData.categoryId}`
                       : "")
                   }
                   readOnly
@@ -643,7 +648,7 @@ export function TourFormModal({
                         ? "Loading categories…"
                         : (() => {
                             const c = categories.find(
-                              (x) => x.id === watch("tourCategoryId")
+                              (x) => x.id === watch("categoryId")
                             );
                             return c ? categoryLabel(c) : "Select a category";
                           })()}
@@ -658,13 +663,13 @@ export function TourFormModal({
                         <CommandGroup>
                           {categories.map((c) => {
                             const lbl = categoryLabel(c);
-                            const checked = c.id === watch("tourCategoryId");
+                            const checked = c.id === watch("categoryId");
                             return (
                               <CommandItem
                                 key={c.id}
                                 value={lbl}
                                 onSelect={() =>
-                                  setValue("tourCategoryId", c.id, {
+                                  setValue("categoryId", c.id, {
                                     shouldValidate: true,
                                   })
                                 }
@@ -685,7 +690,7 @@ export function TourFormModal({
                   </PopoverContent>
                 </Popover>
               )}
-              {!isView && <InlineError msg={errors.tourCategoryId?.message} />}
+              {!isView && <InlineError msg={errors.categoryId?.message} />}
             </div>
 
             <div className="md:col-span-2">
@@ -886,7 +891,10 @@ export function TourFormModal({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    itineraryArray.append({ day: 1, ...emptyActivityObj() })
+                    itineraryArray.append({
+                      day: itineraryArray.fields.length + 1,
+                      ...emptyActivityObj(),
+                    })
                   }
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add day
