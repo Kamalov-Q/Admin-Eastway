@@ -952,7 +952,7 @@ export function HotelFormModal({
             {!isView && (
               <Button
                 disabled={!isDirty || loading || isLoading}
-                type="button"
+                type="submit"
                 className="min-w-[90px]"
                 variant="outline"
                 onClick={() => onOpenChange(false)}

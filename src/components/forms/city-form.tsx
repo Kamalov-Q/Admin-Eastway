@@ -217,7 +217,7 @@ export function CityFormModal({
             {/* Buttons */}
             <div className="flex justify-end gap-2 pt-3">
               <Button
-                type="button"
+                type="submit"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={loading}

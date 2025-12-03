@@ -30,7 +30,6 @@ export function RequestFormModal({
 }: Props) {
   const [value, setValue] = React.useState<"active" | "passive">("active");
 
-
   React.useEffect(() => {
     if (open && request?.status) {
       setValue(request.status);
@@ -79,7 +78,11 @@ export function RequestFormModal({
           >
             Cancel
           </Button>
-          <Button onClick={() => onSubmit(value)} disabled={!!isSubmitting}>
+          <Button
+            onClick={() => onSubmit(value)}
+            disabled={!!isSubmitting}
+            type="submit"
+          >
             {isSubmitting ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

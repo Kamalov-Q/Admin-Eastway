@@ -1,4 +1,3 @@
-// src/components/forms/tour-tariff-scrollable.tsx
 "use client";
 
 import * as React from "react";

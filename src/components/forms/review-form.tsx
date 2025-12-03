@@ -59,8 +59,7 @@ export function ReviewFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm"
-      >
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Update Status — Review #{review.id}</DialogTitle>
         </DialogHeader>
@@ -104,6 +103,7 @@ export function ReviewFormModal({
           </Button>
           <Button
             onClick={() => onSubmit(status)}
+            type="submit"
             disabled={isSubmitting || unchanged}
           >
             {isSubmitting ? "Saving..." : "Save changes"}
