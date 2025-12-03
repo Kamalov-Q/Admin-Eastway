@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import type { Hotel } from "@/api/hotels";
 import { LANGS, type Lang } from "@/api/hotels";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
-import { X, Plus, Trash2, Check } from "lucide-react";
+import { X, Plus, Trash2, Check, Loader2 } from "lucide-react";
 import { useCities, type City } from "@/api/cities";
 import {
   Popover,
@@ -287,6 +287,26 @@ export function HotelFormModal({
       setNewImageFiles([]);
       setNewImagePreviews([]);
     } else {
+      reset({
+        cityId: 0,
+        categoryId: 0,
+        rating: undefined,
+        distances: [
+          { ...emptyPlaceObject(), distance_km: "", duration: "" } as any,
+        ],
+        infos: [emptyNameObject()],
+        services: [emptyNameObject()],
+        property: [emptyNameObject()],
+        ...LANGS.reduce(
+          (acc, lang) => ({
+            ...acc,
+            [`name_${lang}`]: "",
+            [`desc_${lang}`]: "",
+            [`address_${lang}`]: "",
+          }),
+          {}
+        ),
+      });
       setThumbnailPreview(null);
       setExistingImageUrls([]);
       setNewImageFiles([]);
@@ -352,117 +372,6 @@ export function HotelFormModal({
   };
 
   /* -------- submit -------- */
-  // const onSubmitHandler = handleSubmit(async (values) => {
-  //   if (isView) {
-  //     onOpenChange(false);
-  //     return;
-  //   }
-
-  //   if (
-  //     !thumbnailPreview &&
-  //     (!values.thumbnailFile || (values.thumbnailFile as any).length === 0) &&
-  //     !initialData?.thumbnail
-  //   ) {
-  //     alert("Thumbnail is required.");
-  //     return;
-  //   }
-
-  //   let thumbnailUrl = initialData?.thumbnail ?? null;
-  //   if ((values as any).thumbnailFile?.[0]) {
-  //     setLoading(true);
-  //     thumbnailUrl = await uploadThumbnail((values as any).thumbnailFile[0]);
-  //     setLoading(false);
-  //   }
-
-  //   let uploadedNewUrls: string[] = [];
-  //   if (newImageFiles.length > 0) {
-  //     setLoading(true);
-  //     uploadedNewUrls = await uploadImages(newImageFiles, "hotels");
-  //     setLoading(false);
-  //   }
-
-  //   const mergedImages = uniqueByUrl([
-  //     ...existingImageUrls.map((url) => ({ url })),
-  //     ...uploadedNewUrls.map((url) => ({ url })),
-  //   ]);
-
-  //   interface DistancePayload {
-  //     place_en: string;
-  //     place_ru: string;
-  //     place_zh: string;
-  //     place_jp: string;
-  //     place_gr: string;
-  //     place_es: string;
-  //     distance_km: number;
-  //     duration: number;
-  //   }
-
-  //   interface MultilingualName {
-  //     name_en: string;
-  //     name_ru: string;
-  //     name_zh: string;
-  //     name_jp: string;
-  //     name_gr: string;
-  //     name_es: string;
-  //   }
-
-  //   const payload: Partial<Hotel> & {
-  //     images: { url: string }[];
-  //     distances: DistancePayload[];
-  //     infos: MultilingualName[];
-  //     services: MultilingualName[];
-  //     property: MultilingualName[];
-  //   } = {
-  //     cityId: Number(values.cityId),
-  //     rating: Number(values.rating),
-  //     categoryId: Number(values.categoryId),
-  //     thumbnail: thumbnailUrl ?? undefined,
-  //     images: mergedImages,
-  //     distances: values.distances.map(
-  //       (d: any): DistancePayload => ({
-  //         place_en: (d.place_en || "").trim(),
-  //         place_ru: (d.place_ru || "").trim(),
-  //         place_zh: (d.place_zh || "").trim(),
-  //         place_jp: (d.place_jp || "").trim(),
-  //         place_gr: (d.place_gr || "").trim(),
-  //         place_es: (d.place_es || "").trim(),
-  //         // normalize to number (if empty => 0)
-  //         distance_km: Number(d.distance_km) || 0,
-  //         duration: Number(d.duration) || 0,
-  //       })
-  //     ),
-  //     infos: values.infos.map((row: any): MultilingualName => ({ ...row })),
-  //     services: values.services.map(
-  //       (row: any): MultilingualName => ({
-  //         ...row,
-  //       })
-  //     ),
-  //     property: values.property.map(
-  //       (row: any): MultilingualName => ({
-  //         ...row,
-  //       })
-  //     ),
-  //     ...LANGS.reduce(
-  //       (acc, lang) => ({
-  //         ...acc,
-  //         [`name_${lang}`]: (values as any)[`name_${lang}`],
-  //         [`desc_${lang}`]: (values as any)[`desc_${lang}`],
-  //         [`address_${lang}`]: (values as any)[`address_${lang}`],
-  //       }),
-  //       {}
-  //     ),
-  //   };
-  //   try {
-  //     setLoading(true);
-  //     await onSubmit(payload);
-  //     onOpenChange(false);
-  //   } catch {
-  //     setLoading(false);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // });
-
   const onSubmitHandler = handleSubmit(async (values) => {
     if (isView) {
       onOpenChange(false);
@@ -506,7 +415,7 @@ export function HotelFormModal({
       (arr || [])
         .map((row) => ({ ...row }))
         .filter((row) =>
-          Object.values(row).some((v) => (v || "").trim() !== "")
+          Object.values(row).some((v) => (v || "")?.trim() !== "")
         );
 
     // --- PAYLOAD ---
@@ -547,7 +456,7 @@ export function HotelFormModal({
     // --- CREATE VS UPDATE ---
     try {
       setLoading(true);
-      await onSubmit(payload); // ← update works correctly here
+      await onSubmit(payload);
       onOpenChange(false);
     } catch (e) {
       console.error(e);
@@ -1040,16 +949,25 @@ export function HotelFormModal({
           ))}
 
           <DialogFooter>
-            {isView ? (
+            {!isView && (
               <Button
+                disabled={!isDirty || loading || isLoading}
                 type="button"
+                className="min-w-[90px]"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
               >
-                Close
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </div>
+                ) : mode == "edit" ? (
+                  "Update"
+                ) : (
+                  "Create"
+                )}
               </Button>
-            ) : (
-              <Button type="submit">{initialData ? "Update" : "Create"}</Button>
             )}
           </DialogFooter>
         </form>

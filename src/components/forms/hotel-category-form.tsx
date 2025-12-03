@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Category } from "@/api/tour-category";
 import CustomLabel from "../CustomLabel";
+import { Loader2 } from "lucide-react";
 
 const LANGS = ["en", "ru", "es", "zh", "jp", "gr"] as const;
 
@@ -50,7 +51,7 @@ export function HotelCategoryFormModal({
     register,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty, isLoading },
   } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -74,11 +75,15 @@ export function HotelCategoryFormModal({
     });
   }, [initialData, reset, open]);
 
+  const [loading, setLoading] = React.useState(false);
+
   const ro = isView ? { readOnly: true, disabled: true } : {};
 
   const submitHandler = async (vals: Values) => {
     if (isView) return onOpenChange(false);
+    setLoading(true);
     await onSubmit(vals);
+    setLoading(false);
   };
 
   return (
@@ -116,16 +121,23 @@ export function HotelCategoryFormModal({
           ))}
 
           <DialogFooter>
-            {isView ? (
+            {!isView && (
               <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
+                type="submit"
+                disabled={!isDirty || loading || isLoading}
+                className="min-w-[90px]"
               >
-                Close
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </div>
+                ) : mode == "edit" ? (
+                  "Update"
+                ) : (
+                  "Create"
+                )}
               </Button>
-            ) : (
-              <Button type="submit">{initialData ? "Update" : "Create"}</Button>
             )}
           </DialogFooter>
         </form>

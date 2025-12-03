@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { uploadImages, uploadThumbnail } from "@/api/upload";
-import { Plus, Trash2, Check, X } from "lucide-react";
+import { Plus, Trash2, Check, X, Loader2 } from "lucide-react";
 
 import { useCities } from "@/api/cities";
 import { useTourCategories, type Category } from "@/api/tour-category";
@@ -33,6 +33,8 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command";
+import InlineError from "../InlineError";
+import CustomLabel from "../CustomLabel";
 
 const LANGS = ["en", "ru", "gr", "jp", "es", "zh"] as const;
 type Lang = (typeof LANGS)[number];
@@ -404,20 +406,6 @@ export function TourFormModal({
     onOpenChange(false);
   };
 
-  const Label = ({
-    children,
-    required,
-  }: {
-    children: React.ReactNode;
-    required?: boolean;
-  }) => (
-    <label className="font-semibold">
-      {children} {required && <span className="text-red-500">*</span>}
-    </label>
-  );
-  const InlineError = ({ msg }: { msg?: string }) =>
-    msg ? <p className="text-red-500 text-xs mt-1">{msg}</p> : null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -466,18 +454,18 @@ export function TourFormModal({
           {/* Basics */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label required>Days</Label>
+              <CustomLabel required>Days</CustomLabel>
               <Input
                 min={1}
                 type="number"
                 {...register("days", { valueAsNumber: true })}
                 {...ro}
               />
-              {!isView && <InlineError msg={errors.days?.message} />}
+              {!isView && <InlineError msg={errors.days?.message ?? ""} />}
             </div>
 
             <div>
-              <Label required>Tour Type</Label>
+              <CustomLabel required>Tour Type</CustomLabel>
               {isView ? (
                 <Input
                   value={
@@ -539,14 +527,14 @@ export function TourFormModal({
                       </Command>
                     </PopoverContent>
                   </Popover>
-                  <InlineError msg={errors.type?.message} />
+                  <InlineError msg={errors.type?.message ?? ""} />
                 </>
               )}
             </div>
 
             {/* City */}
             <div>
-              <Label required>City</Label>
+              <CustomLabel required>City</CustomLabel>
               {isView ? (
                 <Input
                   value={(() => {
@@ -586,7 +574,6 @@ export function TourFormModal({
                     <Command>
                       <CommandInput placeholder="Search city..." />
                       <CommandEmpty>No city found.</CommandEmpty>
-                      {/* This container handles scrolling with mouse wheel/hover */}
                       <div className="max-h-72 overflow-y-auto overscroll-contain">
                         <CommandGroup>
                           {cities.map((city) => (
@@ -616,12 +603,12 @@ export function TourFormModal({
                   </PopoverContent>
                 </Popover>
               )}
-              {!isView && <InlineError msg={errors.cityId?.message} />}
+              {!isView && <InlineError msg={errors.cityId?.message ?? ""} />}
             </div>
 
             {/* Category */}
             <div>
-              <Label required>Category</Label>
+              <CustomLabel required>Category</CustomLabel>
               {isView ? (
                 <Input
                   value={
@@ -690,23 +677,27 @@ export function TourFormModal({
                   </PopoverContent>
                 </Popover>
               )}
-              {!isView && <InlineError msg={errors.categoryId?.message} />}
+              {!isView && (
+                <InlineError msg={errors.categoryId?.message ?? ""} />
+              )}
             </div>
 
             <div className="md:col-span-2">
-              <Label>YouTube Link</Label>
+              <CustomLabel>YouTube Link</CustomLabel>
               <Input
                 {...register("youtubeLink")}
                 placeholder="https://youtube.com/watch?v=xxxxx"
                 {...ro}
               />
-              {!isView && <InlineError msg={errors.youtubeLink?.message} />}
+              {!isView && (
+                <InlineError msg={errors.youtubeLink?.message ?? ""} />
+              )}
             </div>
           </div>
 
           {/* Thumbnail */}
           <div>
-            <Label required>Thumbnail</Label>
+            <CustomLabel required>Thumbnail</CustomLabel>
             {!isView && (
               <Input
                 type="file"
@@ -732,7 +723,7 @@ export function TourFormModal({
 
           {/* Images */}
           <div>
-            <Label>Tour Images</Label>
+            <CustomLabel>Tour Images</CustomLabel>
             {!isView && (
               <Input
                 type="file"
@@ -778,7 +769,7 @@ export function TourFormModal({
           {/* Infos */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Infos</Label>
+              <CustomLabel>Infos</CustomLabel>
               {!isView && (
                 <Button
                   type="button"
@@ -831,7 +822,7 @@ export function TourFormModal({
           {/* Routes */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Routes</Label>
+              <CustomLabel>Routes</CustomLabel>
               {!isView && (
                 <Button
                   type="button"
@@ -884,7 +875,7 @@ export function TourFormModal({
           {/* Itinerary */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label required>Itinerary</Label>
+              <CustomLabel required>Itinerary</CustomLabel>
               {!isView && (
                 <Button
                   type="button"
@@ -929,7 +920,7 @@ export function TourFormModal({
                     />
                     {!isView && (
                       <InlineError
-                        msg={errors.itinerary?.[index]?.day?.message}
+                        msg={errors.itinerary?.[index]?.day?.message ?? ""}
                       />
                     )}
                   </div>
@@ -963,16 +954,16 @@ export function TourFormModal({
 
           {/* Price / Included / Not included */}
           <section className="space-y-3">
-            <Label required>Price Amount</Label>
+            <CustomLabel required>Price Amount</CustomLabel>
             <Input
               type="number"
               {...register("priceAmount", { valueAsNumber: true })}
               {...ro}
             />
-            {!isView && <InlineError msg={errors.priceAmount?.message} />}
+            {!isView && <InlineError msg={errors.priceAmount?.message ?? ""} />}
 
             <div className="flex items-center justify-between mt-2">
-              <Label>Included</Label>
+              <CustomLabel>Included</CustomLabel>
               {!isView && (
                 <Button
                   type="button"
@@ -1025,7 +1016,7 @@ export function TourFormModal({
             ))}
 
             <div className="flex items-center justify-between mt-2">
-              <Label>Not Included</Label>
+              <CustomLabel>Not Included</CustomLabel>
               {!isView && (
                 <Button
                   type="button"
@@ -1081,16 +1072,25 @@ export function TourFormModal({
           </section>
 
           <DialogFooter>
-            {isView ? (
+            {!isView && (
               <Button
-                type="button"
+                type="submit"
+                disabled={!isDirty || loading || isLoading}
                 variant="outline"
+                className="min-w-[90px]"
                 onClick={() => onOpenChange(false)}
               >
-                Close
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </div>
+                ) : mode == "edit" ? (
+                  "Update"
+                ) : (
+                  "Create"
+                )}
               </Button>
-            ) : (
-              <Button type="submit">{initialData ? "Update" : "Create"}</Button>
             )}
           </DialogFooter>
         </form>
