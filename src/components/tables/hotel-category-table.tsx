@@ -137,8 +137,11 @@ export function HotelCategoryTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-40">
-                      <DropdownMenuItem onClick={() => onView(c)}>
-                        <Eye className="h-4 w-4 mr-2" /> View
+                      <DropdownMenuItem
+                        onClick={() => onView(c)}
+                        className="text-blue-600 focus:text-blue-700"
+                      >
+                        <Eye className="h-4 w-4 mr-2 text-blue-600" /> View
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEdit(c)}>
                         <Pencil className="h-4 w-4 mr-2" /> Edit
@@ -147,7 +150,7 @@ export function HotelCategoryTable({
                         className="text-red-600 focus:text-red-600"
                         onClick={() => askDelete(c)}
                       >
-                        <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        <Trash2 className="h-4 w-4 mr-2 text-red-600" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

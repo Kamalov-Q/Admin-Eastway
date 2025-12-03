@@ -232,8 +232,11 @@ export function ReviewsTable({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
-                      <DropdownMenuItem onClick={() => onView(r)}>
-                        <Eye className="h-4 w-4 mr-2" /> View
+                      <DropdownMenuItem
+                        onClick={() => onView(r)}
+                        className="text-blue-600 focus:text-blue-700"
+                      >
+                        <Eye className="h-4 w-4 mr-2 text-blue-600" /> View
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onOpenStatus(r)}>
                         <Edit3 className="h-4 w-4 mr-2" /> Update status…

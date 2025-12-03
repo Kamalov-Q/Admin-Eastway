@@ -50,7 +50,7 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
     typeof id === "number" ? cityMap.get(id)?.name_en ?? String(id) : "-";
 
   // ---- Category name map  ----
-  const { data: catRaw } = useTourCategories({limit: 100});
+  const { data: catRaw } = useTourCategories({ limit: 100 });
   const categories: Category[] = Array.isArray(catRaw)
     ? (catRaw as Category[])
     : (catRaw as any)?.data ?? [];
@@ -246,8 +246,11 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem onClick={() => onView(tour)}>
-                          <Eye className="h-4 w-4 mr-2" /> Show
+                        <DropdownMenuItem
+                          onClick={() => onView(tour)}
+                          className="text-blue-600 focus:text-blue-700"
+                        >
+                          <Eye className="h-4 w-4 mr-2 text-blue-600" /> Show
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onEdit(tour)}>
                           <Pencil className="h-4 w-4 mr-2" /> Edit
@@ -256,7 +259,8 @@ export function ToursTable({ data, onEdit, onDelete, onView }: Props) {
                           className="text-red-600 focus:text-red-600"
                           onClick={() => askDelete(tour)}
                         >
-                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                          <Trash2 className="h-4 w-4 mr-2 text-red-600" />{" "}
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
