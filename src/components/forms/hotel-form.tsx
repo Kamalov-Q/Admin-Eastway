@@ -84,6 +84,8 @@ const schema = z.object({
   categoryId: z.coerce.number().int().min(1),
 
   thumbnailFile: z.any().optional(),
+  newImages: z.any().optional(),
+  imagesDirty: z.boolean().optional(),
 
   distances: z
     .array(
@@ -322,7 +324,10 @@ export function HotelFormModal({
       const reader = new FileReader();
       reader.onload = () => setThumbnailPreview(reader.result as string);
       reader.readAsDataURL(file);
-      setValue("thumbnailFile", e.target.files as any);
+      setValue("thumbnailFile", e.target.files as any, {
+        shouldDirty: true,
+        shouldTouch: true,
+      });
     }
   };
 
@@ -344,17 +349,37 @@ export function HotelFormModal({
           })
       )
     ).then((urls) => setNewImagePreviews((prev) => [...prev, ...urls]));
+
+    // Mark form dirty
+    setValue("imagesDirty", true, {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
   };
 
   const removeExistingImage = (url: string) => {
     if (isView) return;
+
     setExistingImageUrls((prev) => prev.filter((u) => u !== url));
+
+    // Mark form dirty so Update button enables
+    setValue("imagesDirty", true, {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
   };
 
   const removeNewImage = (index: number) => {
     if (isView) return;
+
     setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
+
+    // Mark form dirty
+    setValue("imagesDirty", true, {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
   };
 
   const uniqueByUrl = (arr: { url: string }[]) => {
@@ -536,6 +561,7 @@ export function HotelFormModal({
                 onChange={(v) =>
                   setValue("rating", v, {
                     shouldValidate: true,
+                    shouldTouch: true,
                     shouldDirty: true,
                   })
                 }
@@ -596,6 +622,8 @@ export function HotelFormModal({
                             onSelect={() =>
                               setValue("cityId", city.id, {
                                 shouldValidate: true,
+                                shouldDirty: true,
+                                shouldTouch: true,
                               })
                             }
                           >
@@ -661,6 +689,8 @@ export function HotelFormModal({
                             onSelect={() =>
                               setValue("categoryId", cat.id, {
                                 shouldValidate: true,
+                                shouldDirty: true,
+                                shouldTouch: true,
                               })
                             }
                           >

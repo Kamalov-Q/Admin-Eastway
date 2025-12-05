@@ -62,6 +62,8 @@ const schema = z.object({
     .union([z.string().url("Must be a valid YouTube URL"), z.literal("")])
     .optional(),
   thumbnailFile: z.any().optional(),
+  newImages: z.any().optional(),
+  imagesDirty: z.boolean().optional(),
 
   infos: z
     .array(
@@ -292,27 +294,54 @@ export function TourFormModal({
       const reader = new FileReader();
       reader.onload = () => setThumbnailPreview(reader.result as string);
       reader.readAsDataURL(file);
-      setValue("thumbnailFile", e.target.files as any);
+      setValue("thumbnailFile", e.target.files as any, {
+        shouldDirty: true,
+        shouldTouch: true,
+      });
     }
   };
 
   const handleImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isView) return;
+
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (!files.length) return;
+
     setNewImageFiles((prev) => [...prev, ...files]);
+
     const previews = files.map((f) => URL.createObjectURL(f));
     setNewImagePreviews((prev) => [...prev, ...previews]);
+
+    // Mark form dirty
+    setValue("imagesDirty", true, {
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
 
   const removeExistingImage = (url: string) => {
     if (isView) return;
+
     setExistingImageUrls((prev) => prev.filter((u) => u !== url));
+
+    // Mark form dirty
+    setValue("imagesDirty", true, {
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
+
   const removeNewImage = (index: number) => {
     if (isView) return;
+
     setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
     setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
+
+    // Mark form dirty
+    setValue("imagesDirty", true, {
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
 
   const ro = isView ? { readOnly: true, disabled: true } : {};
@@ -583,6 +612,8 @@ export function TourFormModal({
                               onSelect={() =>
                                 setValue("cityId", city.id, {
                                   shouldValidate: true,
+                                  shouldDirty: true,
+                                  shouldTouch: true,
                                 })
                               }
                             >
@@ -658,6 +689,8 @@ export function TourFormModal({
                                 onSelect={() =>
                                   setValue("categoryId", c.id, {
                                     shouldValidate: true,
+                                    shouldDirty: true,
+                                    shouldTouch: true,
                                   })
                                 }
                                 className="flex items-center justify-between"
@@ -724,6 +757,7 @@ export function TourFormModal({
           {/* Images */}
           <div>
             <CustomLabel>Tour Images</CustomLabel>
+
             {!isView && (
               <Input
                 type="file"
@@ -732,31 +766,49 @@ export function TourFormModal({
                 onChange={handleImagesChange}
               />
             )}
+
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {/* EXISTING IMAGES */}
               {existingImageUrls.map((url) => (
                 <div key={url} className="relative group">
                   <img src={url} className="w-full h-32 object-cover rounded" />
+
                   {!isView && (
                     <button
                       type="button"
                       className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
                       title="Remove"
-                      onClick={() => removeExistingImage(url)}
+                      onClick={() => {
+                        removeExistingImage(url);
+                        setValue("imagesDirty", true, {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                        });
+                      }}
                     >
                       <Trash2 size={16} />
                     </button>
                   )}
                 </div>
               ))}
+
+              {/* NEW IMAGES */}
               {newImagePreviews.map((src, idx) => (
                 <div key={`new-${idx}`} className="relative group">
                   <img src={src} className="w-full h-32 object-cover rounded" />
+
                   {!isView && (
                     <button
                       type="button"
                       className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-90"
                       title="Remove"
-                      onClick={() => removeNewImage(idx)}
+                      onClick={() => {
+                        removeNewImage(idx);
+                        setValue("imagesDirty", true, {
+                          shouldDirty: true,
+                          shouldTouch: true,
+                        });
+                      }}
                     >
                       <X size={16} />
                     </button>
@@ -932,7 +984,7 @@ export function TourFormModal({
                       <Input
                         placeholder={`Activity ${lang.toUpperCase()}`}
                         {...register(
-                          `itinerary.${index}.activity_${lang}` as const
+                          `itinerary?.${index}?.activity_${lang}` as const
                         )}
                         {...ro}
                       />
