@@ -180,7 +180,7 @@ export function HotelFormModal({
 
   /* -------- cities (normalize to City[]) -------- */
   const { data: citiesRaw, isLoading: citiesLoading } = useCities({
-    limit: 20,
+    limit: 100,
   });
   const cities: City[] = Array.isArray(citiesRaw)
     ? (citiesRaw as City[])

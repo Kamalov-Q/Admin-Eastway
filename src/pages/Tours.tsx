@@ -66,7 +66,7 @@ export default function ToursPage() {
 
   const citiesQuery = useCities({
     country: dCountry || undefined,
-    limit: 20,
+    limit: 100,
     page: 1,
   });
   const cities: City[] = citiesQuery.data?.data ?? [];

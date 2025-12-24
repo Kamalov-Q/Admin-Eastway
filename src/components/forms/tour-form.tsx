@@ -182,12 +182,12 @@ export function TourFormModal({
   const categoryLabel = (c?: Category) =>
     c
       ? c.name_en ||
-        c.name_ru ||
-        c.name_es ||
-        c.name_gr ||
-        c.name_jp ||
-        c.name_zh ||
-        `#${c.id}`
+      c.name_ru ||
+      c.name_es ||
+      c.name_gr ||
+      c.name_jp ||
+      c.name_zh ||
+      `#${c.id}`
       : "";
 
   const {
@@ -452,25 +452,21 @@ export function TourFormModal({
           <div className="space-y-4">
             {LANGS.map((lang) => (
               <div key={lang} className="border rounded-lg p-3 space-y-2">
-                <label className="font-semibold">
-                  Title ({lang.toUpperCase()})
-                </label>
+                <CustomLabel required>Title ({lang.toUpperCase()})</CustomLabel>
                 <Input
                   {...register(`title_${lang}` as const)}
                   {...ro}
                   placeholder={`Title in ${lang}`}
                 />
-                <label className="font-semibold">
-                  Description ({lang.toUpperCase()})
-                </label>
+                <CustomLabel required>
+                  Description ({lang.toUpperCase()})</CustomLabel>
                 <Input
                   {...register(`desc_${lang}` as const)}
                   {...ro}
                   placeholder={`Description in ${lang}`}
                 />
-                <label className="font-semibold">
-                  Address ({lang.toUpperCase()})
-                </label>
+                <CustomLabel required>
+                  Address ({lang.toUpperCase()})</CustomLabel>
                 <Input
                   {...register(`address_${lang}` as const)}
                   {...ro}
@@ -542,11 +538,10 @@ export function TourFormModal({
                                 }
                               >
                                 <Check
-                                  className={`mr-2 h-4 w-4 ${
-                                    watch("type") === opt.value
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  }`}
+                                  className={`mr-2 h-4 w-4 ${watch("type") === opt.value
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                                    }`}
                                 />
                                 {opt.label}
                               </CommandItem>
@@ -569,9 +564,8 @@ export function TourFormModal({
                   value={(() => {
                     const c = cities.find((x) => x.id === watch("cityId"));
                     if (c) {
-                      return `${c.name_en}${
-                        c.name_ru ? ` - ${c.name_ru}` : ""
-                      }`;
+                      return `${c.name_en}${c.name_ru ? ` - ${c.name_ru}` : ""
+                        }`;
                     }
                     return initialData?.cityId
                       ? String(initialData.cityId)
@@ -591,9 +585,8 @@ export function TourFormModal({
                       {(() => {
                         const c = cities.find((x) => x.id === watch("cityId"));
                         if (c) {
-                          return `${c.name_en}${
-                            c.name_ru ? ` - ${c.name_ru}` : ""
-                          }`;
+                          return `${c.name_en}${c.name_ru ? ` - ${c.name_ru}` : ""
+                            }`;
                         }
                         return citiesLoading ? "Loading..." : "Select a city";
                       })()}
@@ -618,11 +611,10 @@ export function TourFormModal({
                               }
                             >
                               <Check
-                                className={`mr-2 h-4 w-4 ${
-                                  city.id === watch("cityId")
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                }`}
+                                className={`mr-2 h-4 w-4 ${city.id === watch("cityId")
+                                  ? "opacity-100"
+                                  : "opacity-0"
+                                  }`}
                               />
                               {city.name_en}
                               {city.name_ru ? ` - ${city.name_ru}` : ""}
@@ -665,11 +657,11 @@ export function TourFormModal({
                       {tourCatsQuery.isLoading
                         ? "Loading categories…"
                         : (() => {
-                            const c = categories.find(
-                              (x) => x.id === watch("categoryId")
-                            );
-                            return c ? categoryLabel(c) : "Select a category";
-                          })()}
+                          const c = categories.find(
+                            (x) => x.id === watch("categoryId")
+                          );
+                          return c ? categoryLabel(c) : "Select a category";
+                        })()}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-full p-0">
@@ -697,9 +689,8 @@ export function TourFormModal({
                               >
                                 <div className="truncate">{lbl}</div>
                                 <Check
-                                  className={`h-4 w-4 ${
-                                    checked ? "opacity-100" : "opacity-0"
-                                  }`}
+                                  className={`h-4 w-4 ${checked ? "opacity-100" : "opacity-0"
+                                    }`}
                                 />
                               </CommandItem>
                             );
